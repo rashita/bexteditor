@@ -1,6 +1,8 @@
 
 # BextEditor
 
+!!This project is still incomplete!!
+
 BextEditor is a simple, lightweight text editor built with Electron and CodeMirror. It's designed for a clean, focused writing experience, primarily for Markdown files.
 
 ## Features
