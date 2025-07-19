@@ -1,0 +1,44 @@
+{
+  "name": "bexteditor",
+  "version": "1.0.0",
+  "productName": "BextEditor",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "esbuild renderer.js --bundle --outfile=dist/bundle.js --platform=browser --sourcemap && electron .",
+    "build": "esbuild renderer.js --bundle --outfile=dist/bundle.js --platform=browser --minify=true --sourcemap && electron-builder --mac --arm64",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "build": {
+    "productName": "BextEditor",
+    "appId": "com.bext.editor",
+    "mac": {
+      "target": "dmg",
+      "identity": null,
+      "icon": "icons.icns/icons.icns"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "dist/",
+      "build/"
+    ]
+  },
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^37.1.0",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.6"
+  },
+  "dependencies": {
+    "@codemirror/lang-markdown": "^6.3.3",
+    "@codemirror/language-data": "^6.5.1",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.0",
+    "codemirror": "^6.0.2"
+  }
+}
