@@ -1,6 +1,29 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, nativeImage } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const log = require('electron-log')
+const { program } = require ("commander")
+
+console.log = (...args) => log.info(...args)
+console.error = (...args) => log.error(...args)
+console.warn = (...args) => log.warn(...args)
+
+program
+  .option("--allow-file-access-from-files")
+  .option("--enable-avfoundation");
+
+
+function parseArguments(args) {
+  program.parse(args, {from: "user"})
+  const binary = args[0];
+  return path.basename(binary) === "Electron" ? program.args.slice(2) : program.args.slice(1)
+}
+
+// アプリ開始ログ
+log.info('App is starting...')
+
+
+const fileToOpen = process.argv[1]
 
 const windows = new Set();
 
@@ -115,6 +138,7 @@ async function handleFileSave(event, { filePath, content }) {
     }
   }
 }
+
 
 // --- Step 3: レンダラープロセスからの通知を受け取り、タイトルを更新 ---
 ipcMain.on('update-title', (event, { filePath, isDirty }) => {
@@ -233,7 +257,53 @@ const menuTemplate = [
   }
 ];
 
+//引き数を使った起動への対応
+let openFileQueue = []
+
+
+function openFileFromPath(filePath) {
+  console.log("ファイルから" + filePath + "ウィンドウを作成します")
+  const newWindow = createWindow();
+  newWindow.webContents.once('did-finish-load', () => {
+    try {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      newWindow.webContents.send('load-file', { filePath, content });
+      app.addRecentDocument(filePath);
+    } catch (e) {
+      console.error('Failed to read file', e);
+    }
+  });
+}
+
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  console.log('open-file received:', filePath)
+  if (windows.size === 0) {
+    //ウィンドウがないときの処理
+    console.log('ウィンドウがありません')
+  }
+  //open コマンド起動時はこれが即座に開く
+  if (app.isReady()) {
+    console.log("アプリは起動しています")
+    openFileFromPath(filePath)
+    } else {
+    console.log("アプリは起動していません")
+    openFileQueue.push(filePath)
+  }
+  
+});
+
+
+app.on('will-finish-launching', () => {
+  console.log('will-finish-launching');
+});
+
+app.on('ready', () => {
+  console.log('ready event');
+});
+
 app.whenReady().then(() => {
+  console.log("when ready start");
   ipcMain.handle('dialog:saveFile', handleFileSave);
 
   ipcMain.handle('open-specific-file', async (event, filePath) => {
@@ -244,6 +314,12 @@ app.whenReady().then(() => {
       return { success: false, error: e.message };
     }
   });
+  if (fileToOpen){
+    console.log("コマンドライン引き数があるよ")
+    openFileFromPath(fileToOpen)
+    return
+  }
+
 
 
   if (process.platform === 'darwin') {
@@ -252,33 +328,60 @@ app.whenReady().then(() => {
     app.dock.setIcon(iconimage);
   }
 
-  createWindow();
+
 
   const menu = Menu.buildFromTemplate(menuTemplate);
   Menu.setApplicationMenu(menu);
 
-  app.on('activate', () => {
+ 
+
+  
+
+  app.on('activate', (event, hasVisibleWindows) => {
+    console.log("active" + event)
     if (windows.size === 0) {
-      createWindow();
+      console.log("on active");
     }
   });
 
-  app.on('open-file', (event, filePath) => {
-    event.preventDefault();
-    // 新しいウィンドウを作成
-    const newWindow = createWindow();
-    // ファイルを読み込んでレンダラープロセスに送信
-    newWindow.webContents.once('did-finish-load', () => {
-      try {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        newWindow.webContents.send('load-file', { filePath, content });
-        app.addRecentDocument(filePath);
-      } catch (e) {
-        console.error('Failed to read file', e);
-      }
-    });
-  });
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    console.log("second-instance:初期")
+    console.log("commandLine" + commandLine)
+    openFileQueue.push(commandLine)
+  })
+
+   createWindow()
+
+   console.log(openFileQueue)
+
+
 });
+
+app.on("second-instance", (_e,argv) => {
+    // レンダラープロセスへファイルパスを送信
+    console.log("second-instance" +argv)
+    console.log("出力確認")
+    console.log(parseArguments(argv))
+    //files.forEach(openFileFromPath);
+    //openFileFromPath(parseArguments(argv))
+    //focusExistingWindow();
+  });
+
+  // プロトコルのハンドリング。 今回は、エラーボックスを表示することにします。
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('bext-editor', process.execPath, [path.resolve(process.argv[1])])
+  }
+} else {
+  app.setAsDefaultProtocolClient('bext-editor')
+}
+
+app.on('open-url', (event, url) => {
+  dialog.showErrorBox('Welcome Back', `You arrived from: ${url}`)
+  //You arrived from: bext-editor://
+  //ファイルのパスをすべて入れるのは無理がある
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
