@@ -22,8 +22,13 @@ function parseArguments(args) {
 // アプリ開始ログ
 log.info('App is starting...')
 
+let fileToOpen = null
 
-const fileToOpen = process.argv[1]
+if (!process.defaultApp && process.argv.length >= 2) {
+  fileToOpen = process.argv[1];
+}
+
+
 
 const windows = new Set();
 
@@ -145,7 +150,7 @@ ipcMain.on('update-title', (event, { filePath, isDirty }) => {
   // 通知元のウィンドウを取得
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) {
-    let title = "Bext Editor"; // デフォルトタイトル
+    let title = "BextEditor"; // デフォルトタイトル
     if (filePath) {
       title = path.basename(filePath);
     }
@@ -367,8 +372,6 @@ app.on("second-instance", (_e,argv) => {
     //focusExistingWindow();
   });
 
-  // プロトコルのハンドリング。 今回は、エラーボックスを表示することにします。
-
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
     app.setAsDefaultProtocolClient('bext-editor', process.execPath, [path.resolve(process.argv[1])])
@@ -384,7 +387,5 @@ app.on('open-url', (event, url) => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  app.quit();
 });
