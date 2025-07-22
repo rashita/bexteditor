@@ -1,6 +1,8 @@
 import { lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, keymap} from '@codemirror/view';
 import { EditorView } from '@codemirror/view';
+import { ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
+import { RangeSetBuilder } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { foldGutter, indentOnInput, HighlightStyle, syntaxHighlighting, foldKeymap } from '@codemirror/language';
@@ -8,11 +10,132 @@ import { tags } from "@lezer/highlight";
 import { searchKeymap } from '@codemirror/search';
 import { closeBrackets, autocompletion, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
 import { lintKeymap } from '@codemirror/lint';
-import { ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemirror/language"; //下位項目の開閉
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
+
+function isCursorInsideInternalLink(state) {
+  const { head } = state.selection.main;
+  const line = state.doc.lineAt(head);
+  const regex = /\[\[([^\]]+)\]\]/g;
+  let match;
+
+  while ((match = regex.exec(line.text)) !== null) {
+    const start = line.from + match.index;
+    const end = start + match[0].length;
+    if (head >= start && head <= end) return match[1]; // 内部にいるならリンクテキストを返す
+  }
+  return null;
+}
+
+const internalLinkPlugin = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.decorations = this.buildDecorations(view);
+  }
+
+  update(update) {
+    if (update.docChanged || update.selectionSet || update.viewportChanged) {
+      this.decorations = this.buildDecorations(update.view);
+    }
+  }
+
+  buildDecorations(view) {
+    const builder = new RangeSetBuilder();
+    const regex = /\[\[([^\]]+)\]\]/g;
+
+    const cursorLine = view.state.doc.lineAt(view.state.selection.main.head).number;
+
+    for (let { from, to } of view.visibleRanges) {
+      let pos = from;
+      while (pos <= to) {
+        const line = view.state.doc.lineAt(pos);
+        const isCursorLine = line.number === cursorLine;
+        const text = line.text;
+
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          const start = line.from + match.index;
+          const end = start + match[0].length;
+          const linkText = match[1];
+
+          if (isCursorLine) {
+            // カーソルがある行 → 色だけつける（リンク色）
+            const mark = Decoration.mark({
+              class: "cm-internal-link-active"
+            });
+            builder.add(start, end, mark);
+          } else {
+            // カーソルがない行 → ウィジェット表示
+            const deco = Decoration.widget({
+              widget: new InternalLinkWidget(linkText),
+              side: 0
+            });
+            builder.add(start, end, deco);
+          }
+        }
+
+        pos = line.to + 1;
+      }
+    }
+
+    return builder.finish();
+  }
+
+}, {
+  decorations: v => v.decorations
+});
+
+class InternalLinkWidget extends WidgetType{
+  constructor(linkText) {
+    super();
+    this.linkText = linkText;
+  }
+
+  eq(other) {
+    return other.linkText === this.linkText;
+  }
+
+  toDOM() {
+    const span = document.createElement("span");
+    span.className = "cm-hmd-internal-link";
+
+    const a = document.createElement("a");
+    a.className = "cm-underline";
+    a.href = "#";
+    a.textContent = this.linkText;
+    a.addEventListener("mousedown", e => {
+      e.stopPropagation(); // mousedownを停止
+    });
+    
+    a.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // ← エディタへのフォーカス移動などを防ぐ
+      console.log("Internal link clicked:", this.linkText);
+      const isModifierPressed = e.metaKey || e.ctrlKey; //MacとWinでcommand
+
+      if (isModifierPressed) {
+        // 新規ウィンドウなど
+      } else {
+        // 通常処理
+      }
+
+    };
+
+    span.appendChild(a);
+    return span;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+
+  destroy(dom) {
+    // ウィジェットが消えるときのクリーンアップ処理
+    // 通常は何もせずOK
+  }
+}
+
 
 const markdownWithGFM = markdown({
   base: markdownLanguage,
@@ -118,6 +241,23 @@ const customKeymap = keymap.of([
     key: "Mod-Alt-ArrowRight",
     preventDefault: true,
     run: smartToggleFold
+  },
+  {
+    key: "Mod-Enter", // Cmd+Enter または Ctrl+Enter
+    run: (view) => {
+      console.log("hit command + enter");
+      const linkText = isCursorInsideInternalLink(view.state);
+      if (linkText) {
+        // Cmd+Enter かつ [[...]] 内にカーソルがある場合の処理
+        console.log("Cmd+Enter inside internal link:", linkText);
+
+        // Electron の IPC で新規ウィンドウを開く例
+        // window.electronAPI.openInNewWindow(linkText);
+
+        return true;  // キーイベントを処理済みとして伝える
+      }
+      return false;  // そうでなければ通常のEnter動作へ
+    }
   }
 ]);
 
@@ -208,15 +348,16 @@ function initializeEditor() {
   const state = EditorState.create({
     doc: '',
     extensions: [
+      customKeymap,
       ...mySetup,
       //markdown(),
       markdownWithGFM,
       updateListener,
       syntaxHighlighting(myHighlightStyle),
-      customKeymap,
       EditorView.lineWrapping,
       checklistPlugin,
-      imagePlugin
+      imagePlugin,
+      internalLinkPlugin
     ]
   });
 
@@ -304,7 +445,7 @@ class CheckboxWidget extends WidgetType {
     checkbox.dataset.task = this.checked ? "x" : " ";
 
     checkbox.addEventListener("mousedown", e => {
-            e.stopPropagation(); // mousedownを停止
+      e.stopPropagation(); // mousedownを停止
     });
 
     // ✔️ チェック状態をMarkdownに反映
@@ -458,5 +599,10 @@ const imagePlugin = ViewPlugin.fromClass(class {
 // --- 初期化処理 ---
 initializeEditor();
 updateTitle();
+
+const keymaps = editorView.state.facet(keymap);
+
+console.log(keymaps);
+
 
 console.log('Renderer script with CodeMirror loaded.');
