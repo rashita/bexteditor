@@ -10,6 +10,7 @@ import { closeBrackets, autocompletion, closeBracketsKeymap, completionKeymap } 
 import { lintKeymap } from '@codemirror/lint';
 import { ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
+import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemirror/language"; //下位項目の開閉
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
 
@@ -53,6 +54,49 @@ const myHighlightStyle = HighlightStyle.define([
   { tag: tags.list, class: 'cm-bullet-list-mark' },
 ]);
 
+
+function smartToggleFold(view) {
+  // unfoldを試行（展開優先）
+  if (unfoldCode(view)) {
+    return true
+  }
+  
+  // foldを試行
+  if (foldCode(view)) {
+    return true
+  }
+  
+  // どちらも失敗した場合は何もしない
+  return false
+}
+
+//foldのトグル関数
+function toggleFoldCode(view) {
+  const { state } = view;
+  const line = state.doc.lineAt(state.selection.main.head);
+  const range = foldable(state, line.from);
+  console.log("toggleFoldCode start")
+
+  if (!range) return false;
+  console.log("rang has")
+
+
+  // 折りたたまれているかを確認
+  const isFolded = state.field(foldEffect, false)?.some(r =>
+    r.from === range.from && r.to === range.to
+  );
+
+  console.log("hold ?" + isFolded)
+
+  view.dispatch({
+    effects: isFolded
+      ? unfoldEffect.of(range)
+      : foldEffect.of(range)
+  });
+
+  return true;
+}
+
 // カスタムのキーバインディング
 const customKeymap = keymap.of([
   {
@@ -64,8 +108,19 @@ const customKeymap = keymap.of([
     key: "Mod-Alt-ArrowDown",
     preventDefault: true,
     run: moveLineDown
+  },
+  {
+    key: "Mod-Alt-ArrowLeft",  
+    preventDefault: true,
+    run: foldCode
+  },
+  {
+    key: "Mod-Alt-ArrowRight",
+    preventDefault: true,
+    run: smartToggleFold
   }
 ]);
+
 
 // カスタムのセット
 const mySetup = [
