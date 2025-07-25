@@ -2,7 +2,7 @@ import { lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSele
 import { EditorView } from '@codemirror/view';
 import { ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
-import { RangeSetBuilder } from "@codemirror/state";
+import { RangeSetBuilder  } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { foldGutter, indentOnInput, HighlightStyle, syntaxHighlighting, foldKeymap } from '@codemirror/language';
@@ -14,6 +14,25 @@ import { syntaxTree } from "@codemirror/language";
 import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemirror/language"; //下位項目の開閉
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
+
+const charCountPlugin = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.view = view;
+    this.dom = document.createElement("div");
+    this.dom.className = "cm-char-count";
+    this.dom.style.cssText = "padding: 4px; font-size: 12px; background: #f5f5f5;";
+    this.update(view);
+    view.dom.parentNode.appendChild(this.dom);
+  }
+
+  update(update) {
+    this.dom.textContent = `文字数: ${update.state.doc.length}`;
+  }
+
+  destroy() {
+    this.dom.remove();
+  }
+});
 
 function isCursorInsideInternalLink(state) {
   const { head } = state.selection.main;
@@ -117,7 +136,8 @@ class InternalLinkWidget extends WidgetType{
       if (isModifierPressed) {
         // 新規ウィンドウなど
       } else {
-        // 通常処理
+        window.electronAPI.openLink(linkText)
+        //今開いているウィンドウを書き換えす
       }
 
     };
@@ -340,9 +360,6 @@ function moveLineDown({ state, dispatch }) {
 }
 
 
-
-
-
 // --- CodeMirrorの初期化 ---
 function initializeEditor() {
   const state = EditorState.create({
@@ -357,7 +374,8 @@ function initializeEditor() {
       EditorView.lineWrapping,
       checklistPlugin,
       imagePlugin,
-      internalLinkPlugin
+      internalLinkPlugin,
+      charCountPlugin
     ]
   });
 
@@ -599,10 +617,6 @@ const imagePlugin = ViewPlugin.fromClass(class {
 // --- 初期化処理 ---
 initializeEditor();
 updateTitle();
-
-const keymaps = editorView.state.facet(keymap);
-
-console.log(keymaps);
 
 
 console.log('Renderer script with CodeMirror loaded.');
