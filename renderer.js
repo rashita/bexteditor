@@ -15,6 +15,7 @@ import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemir
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
 
+//文字数カウント用のプラグイン
 const charCountPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
     this.view = view;
@@ -48,6 +49,7 @@ function isCursorInsideInternalLink(state) {
   return null;
 }
 
+//内部リンク用のプラグイン
 const internalLinkPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
     this.decorations = this.buildDecorations(view);
@@ -162,14 +164,14 @@ const markdownWithGFM = markdown({
   codeLanguages: languages, // ← GFMなど含まれる
 });
 
-let currentFilePath = null;
+window.currentFilePath = null;
 let isDirty = false;
 let editorView; // To hold the EditorView instance
 
 // --- 1. タイトル更新をメインプロセスに依頼する関数 ---
 function updateTitle() {
   window.electronAPI.updateTitle({
-    filePath: currentFilePath,
+    filePath: window.currentFilePath,
     isDirty
   });
 }
@@ -240,6 +242,18 @@ function toggleFoldCode(view) {
   return true;
 }
 
+function slideRight(){
+  console.log("slideRight")
+}
+function slideLeftt(){
+  console.log("slideLeft")
+}
+function slideUp(){
+  console.log("slideUp")
+}
+function slideDown(){
+  console.log("slideDown")
+}
 // カスタムのキーバインディング
 const customKeymap = keymap.of([
   {
@@ -261,6 +275,41 @@ const customKeymap = keymap.of([
     key: "Mod-Alt-ArrowRight",
     preventDefault: true,
     run: smartToggleFold
+  },
+  {
+    key: "Mod-Alt-@",
+    preventDefault: true,
+    run: slideUp
+  },
+  {
+    key: "Mod-Alt-:",
+    preventDefault: true,
+    run: slideDown
+  },
+  {
+    key: "Mod-Alt-[",
+    preventDefault: true,
+    run: async () => {
+      if (!window.currentFilePath) return
+      if (isDirty) {
+        await saveCurrentFile();  // 自動で保存
+      }
+      window.electronAPI.shiftFile(currentFilePath,-1);
+      return true;
+    }
+  },
+  {
+    key: "Mod-Alt-]",
+    preventDefault: true,
+    run: async () => {
+      if (!window.currentFilePath) return
+      if (isDirty) {
+        await saveCurrentFile();  // 自動で保存
+      }
+      window.electronAPI.shiftFile(currentFilePath,+1);
+ 
+      return true;
+    }
   },
   {
     key: "Mod-Enter", // Cmd+Enter または Ctrl+Enter
@@ -387,7 +436,7 @@ function initializeEditor() {
 
 // --- ファイルを開く処理 ---
 window.electronAPI.onLoadFile(({ filePath, content }) => {
-  currentFilePath = filePath;
+  window.currentFilePath = filePath;
 
   // エディタの内容を新しいファイルの内容で更新
   editorView.dispatch({
@@ -400,21 +449,46 @@ window.electronAPI.onLoadFile(({ filePath, content }) => {
 
 // --- ファイルを保存する処理 ---
 window.electronAPI.onTriggerSaveFile(async (event, { id }) => {
+  await saveCurrentFile(id);  
+  return
   if (!editorView) return;
 
   const content = editorView.state.doc.toString();
   const returnedFilePath = await window.electronAPI.saveFile({
-    filePath: currentFilePath,
+    filePath: window.currentFilePath,
     content
   });
 
   if (returnedFilePath) {
-    currentFilePath = returnedFilePath;
+    window.currentFilePath = returnedFilePath;
     setDirtyState(false);
     updateTitle();
     window.electronAPI.fileSaved(id);
   }
 });
+
+async function saveCurrentFile(id = null) {
+  if (!editorView) return false;
+
+  const content = editorView.state.doc.toString();
+  const returnedFilePath = await window.electronAPI.saveFile({
+    filePath: window.currentFilePath,
+    content
+  });
+
+  if (returnedFilePath) {
+    window.currentFilePath = returnedFilePath;
+    setDirtyState(false);
+    updateTitle();
+
+    if (id !== null) {
+      window.electronAPI.fileSaved(id);
+    }
+    return true;
+  }
+
+  return false;
+}
 
 window.electronAPI.onBeforeClose((event, { id }) => {
   window.electronAPI.sendIsDirty(id, isDirty);
@@ -432,7 +506,7 @@ document.addEventListener('click', async (e) => {
       editorView.dispatch({
         changes: { from: 0, to: editorView.state.doc.length, insert: result.content }
       });
-      currentFilePath = result.filePath;
+      window.currentFilePath = result.filePath;
       setDirtyState(false);
       updateTitle();
     } else {

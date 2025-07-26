@@ -9,4 +9,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateTitle: (data) => ipcRenderer.send('update-title', data),
   openSpecificFile: (filePath) => ipcRenderer.invoke('open-specific-file', filePath),
   onLoadFile: (callback) => ipcRenderer.on('load-file', (event, data) => callback(data)),
+  openLink: (linkText) => ipcRenderer.send("open-link", linkText),
+  shiftFile: (filePath,offsetDays) => ipcRenderer.send('shift-file', filePath,offsetDays)
 });

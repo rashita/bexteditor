@@ -161,6 +161,12 @@ ipcMain.on('update-title', (event, { filePath, isDirty }) => {
   }
 });
 
+//内部リンクの呼び出し
+ipcMain.on("open-link", (event, linkText) => {
+  console.log("リンククリック検知:", linkText);
+  // 本格的なファイル呼び出しは後で実装
+});
+
 app.setName('bextEditor');
 
 const menuTemplate = [
@@ -388,4 +394,54 @@ app.on('open-url', (event, url) => {
 
 app.on('window-all-closed', () => {
   app.quit();
+});
+
+
+function shiftDateInFilename(filePath, offsetDays) {
+  const fileName = path.basename(filePath); // 例: 20250725.md
+  const dirName = path.dirname(filePath);   // 例: Dropbox/logtext
+  const match = fileName.match(/(\d{4})(\d{2})(\d{2})\.md$/);
+  if (!match) return null;
+
+  const [_, year, month, day] = match;
+  const date = new Date(`${year}-${month}-${day}`);
+  date.setDate(date.getDate() + offsetDays);
+
+  const newDateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
+  const newFileName = `${newDateStr}.md`;
+  return path.join(dirName, newFileName); 
+}
+
+//ファイル移動のためのイベントリスナ
+ipcMain.on("shift-file", async (event, currentPath,offsetDays) => {
+  const newPath = shiftDateInFilename(currentPath,offsetDays);
+  if (!newPath) {
+    console.log("エラー", "ファイル名に日付が含まれていません。");
+    return;
+  }
+
+  if (fs.existsSync(newPath)) {
+    // 既存ファイルを開く
+    console.log(newPath + "は存在しています");
+    try {
+       console.log(newPath + "を読み込みます");
+      const content = fs.readFileSync(newPath, 'utf-8');
+      event.sender.send("load-file", { filePath: newPath, content });
+    } catch (e) {
+      dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
+    }
+  } else {
+    const { response } = await dialog.showMessageBox({
+      type: "question",
+      buttons: ["作成", "キャンセル"],
+      defaultId: 0,
+      cancelId: 1,
+      message: `${path.basename(newPath)} は存在しません。作成しますか？`
+    });
+
+    if (response === 0) {
+      //fs.writeFileSync(newPath, ""); // 空ファイル作成
+      //event.sender.send("open-file", newPath);
+    }
+  }
 });
