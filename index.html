@@ -34,6 +34,31 @@
         .task-list-item-checkbox {
            cursor: pointer;
         }
+        .cm-hmd-internal-link a {
+          color: #4477cc;
+          text-decoration: none;
+        }
+
+        .cm-hmd-internal-link a:hover {
+          text-decoration: underline;
+        }
+
+        /* カーソルがある行で [[hoge]] を強調表示 */
+        .cm-internal-link-active {
+          color: #4477cc;
+          font-weight: 500;
+        }
+
+        /* 文字数カウント */
+        .cm-char-count {
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          padding: 4px 8px;
+          background-color: #eee;
+          border-top: 1px solid #ccc;
+          font-family: monospace;
+        }
     </style>
   </head>
   <body>
