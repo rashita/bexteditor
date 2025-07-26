@@ -242,12 +242,6 @@ function toggleFoldCode(view) {
   return true;
 }
 
-function slideRight(){
-  console.log("slideRight")
-}
-function slideLeftt(){
-  console.log("slideLeft")
-}
 function slideUp(){
   console.log("slideUp")
 }
@@ -277,14 +271,30 @@ const customKeymap = keymap.of([
     run: smartToggleFold
   },
   {
-    key: "Mod-Alt-@",
+    key: "Mod-Ctrl-ArrowUp",
     preventDefault: true,
-    run: slideUp
+    run: async () => {
+      if (!window.currentFilePath) return
+      if (isDirty) {
+        await saveCurrentFile();  // 自動で保存
+      }
+      console.log("Mod-Alt-@です")
+      window.electronAPI.levelFile(currentFilePath,true);
+      return true;
+    }
   },
   {
-    key: "Mod-Alt-:",
+    key: "Mod-Ctrl-ArrowDown",
     preventDefault: true,
-    run: slideDown
+    run: async () => {
+      if (!window.currentFilePath) return
+      if (isDirty) {
+        await saveCurrentFile();  // 自動で保存
+      }
+      console.log("Mod-Alt-:です")
+      window.electronAPI.levelFile(currentFilePath,false);
+      return true;
+    }
   },
   {
     key: "Mod-Alt-[",
