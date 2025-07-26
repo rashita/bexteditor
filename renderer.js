@@ -129,7 +129,7 @@ class InternalLinkWidget extends WidgetType{
       e.stopPropagation(); // mousedownを停止
     });
     
-    a.onclick = (e) => {
+    a.onclick = async (e) => {
       e.preventDefault();
       e.stopPropagation(); // ← エディタへのフォーカス移動などを防ぐ
       console.log("Internal link clicked:", this.linkText);
@@ -138,7 +138,8 @@ class InternalLinkWidget extends WidgetType{
       if (isModifierPressed) {
         // 新規ウィンドウなど
       } else {
-        window.electronAPI.openLink(linkText)
+        //ここにリンクの読み込みを追加
+        await window.electronAPI.openLink(this.linkText,window.currentFilePath)
         //今開いているウィンドウを書き換えす
       }
 

@@ -162,9 +162,54 @@ ipcMain.on('update-title', (event, { filePath, isDirty }) => {
 });
 
 //内部リンクの呼び出し
-ipcMain.on("open-link", (event, linkText) => {
+ipcMain.on("open-link", async (event, linkText,currentFilePath) => {
   console.log("リンククリック検知:", linkText);
-  // 本格的なファイル呼び出しは後で実装
+  if (!currentFilePath) return
+  //ここでリンクの処理を行うひとまず適当に作る
+  const fileName = path.basename(currentFilePath); // 例: 20250725.md
+  const dirName = path.dirname(currentFilePath);   // 例: Dropbox/logtext
+  const NewFileName = linkText + ".md"
+  const newPath = path.join(dirName , NewFileName)
+  console.log(newPath + "を内部リンクとして処理します");
+  if (fs.existsSync(newPath)) {
+    // 既存ファイルを開く
+    console.log(newPath + "は存在しています");
+    try {
+       console.log(newPath + "を読み込みます");
+      const content = fs.readFileSync(newPath, 'utf-8');
+      event.sender.send("load-file", { filePath: newPath, content });
+    } catch (e) {
+      dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
+    }
+  } 
+
+
+  return
+
+  if (fs.existsSync(newPath)) {
+    // 既存ファイルを開く
+    console.log(newPath + "は存在しています");
+    try {
+       console.log(newPath + "を読み込みます");
+      const content = fs.readFileSync(newPath, 'utf-8');
+      event.sender.send("load-file", { filePath: newPath, content });
+    } catch (e) {
+      dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
+    }
+  } else {
+    const { response } = await dialog.showMessageBox({
+      type: "question",
+      buttons: ["作成", "キャンセル"],
+      defaultId: 0,
+      cancelId: 1,
+      message: `${path.basename(newPath)} は存在しません。作成しますか？`
+    });
+
+    if (response === 0) {
+      //fs.writeFileSync(newPath, ""); // 空ファイル作成
+      //event.sender.send("open-file", newPath);
+    }
+  }
 });
 
 app.setName('bextEditor');
@@ -424,7 +469,7 @@ ipcMain.on("shift-file", async (event, currentPath,offsetDays) => {
     // 既存ファイルを開く
     console.log(newPath + "は存在しています");
     try {
-       console.log(newPath + "を読み込みます");
+      console.log(newPath + "を読み込みます");
       const content = fs.readFileSync(newPath, 'utf-8');
       event.sender.send("load-file", { filePath: newPath, content });
     } catch (e) {
