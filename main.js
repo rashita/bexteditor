@@ -109,6 +109,8 @@ async function openFileInNewWindow() {
       try {
         const content = fs.readFileSync(filePath, 'utf-8');
         newWindow.webContents.send('load-file', { filePath, content });
+        //開いているファイルをmain.jsでも扱えるように
+        newWindow.currentFilePath = filePath;
       } catch (e) {
         console.error('Failed to read file', e);
         // ここでユーザーにエラーを通知することもできます
@@ -182,13 +184,7 @@ ipcMain.on("open-link", async (event, linkText,currentFilePath) => {
   if (fs.existsSync(newPath)) {
     // 既存ファイルを開く
     console.log(newPath + "は存在しています");
-    try {
-      console.log(newPath + "を読み込みます");
-      const content = fs.readFileSync(newPath, 'utf-8');
-      event.sender.send("load-file", { filePath: newPath, content });
-    } catch (e) {
-      dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
-    }
+    linkOpenAndLoadFile(event,newPath)
   } else{
     console.log(newPath + "は存在しないので子フォルダを探します");
     const entries = fs.readdirSync(dirName, { withFileTypes: true });
@@ -196,13 +192,7 @@ ipcMain.on("open-link", async (event, linkText,currentFilePath) => {
     if (entry.isDirectory()) {
       const childIndex = path.join(dirName, entry.name, NewFileName);
       if (fs.existsSync(childIndex)) {
-        try {
-            console.log(childIndex + "を読み込みます");
-            const content = fs.readFileSync(childIndex, 'utf-8');
-            event.sender.send("load-file", { filePath: childIndex, content });
-          } catch (e) {
-            dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
-          }
+        linkOpenAndLoadFile(event,childIndex)
       }
     }
   }
@@ -350,7 +340,9 @@ function openFileFromPath(filePath,parent=null) {
       const content = fs.readFileSync(filePath, 'utf-8');
       newWindow.webContents.send('load-file', { filePath, content });
       app.addRecentDocument(filePath);
-      console.log(newWindow.getParentWindow())
+
+      //開いているファイルをmain.jsでも扱えるように
+      newWindow.currentFilePath = filePath;
     } catch (e) {
       console.error('Failed to read file', e);
     }
@@ -494,13 +486,8 @@ ipcMain.on("shift-file", async (event, currentPath,offsetDays) => {
   if (fs.existsSync(newPath)) {
     // 既存ファイルを開く
     console.log(newPath + "は存在しています");
-    try {
-      console.log(newPath + "を読み込みます");
-      const content = fs.readFileSync(newPath, 'utf-8');
-      event.sender.send("load-file", { filePath: newPath, content });
-    } catch (e) {
-      dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
-    }
+    linkOpenAndLoadFile(event,newPath)
+
   } else {
     const { response } = await dialog.showMessageBox({
       type: "question",
@@ -520,21 +507,21 @@ ipcMain.on("shift-file", async (event, currentPath,offsetDays) => {
 //ファイル上下移動のためのイベントリスナ
 ipcMain.on("level-file", async (event, currentPath,isUp) => {
   const parentWindow = BrowserWindow.fromWebContents(event.sender)
-  console.log(parentWindow)
   if(isUp){
     const newPath = levelDateInFilename(currentPath);
     if (newPath) {
-      try {
-        console.log(newPath + "を読み込みます");
-        const content = fs.readFileSync(newPath, 'utf-8');
-        event.sender.send("load-file", { filePath: newPath, content });
-      } catch (e) {
-        dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
-      }
+      linkOpenAndLoadFile(event,newPath)
     }
   }else{
     const newPath = toggleSnakememo(currentPath)
     if (newPath) {
+      for (const win of windows) {
+       if (win.currentFilePath === newPath) {
+        console.log("すでにそのファイルは開かれています")
+        win.close()
+        return
+        }
+      }
       openFileFromPath(newPath,parentWindow)
     }
 
@@ -578,7 +565,7 @@ function toggleSnakememo(filePath){
   const dirName = path.dirname(filePath);   // 例: Dropbox/logtext
   const parentDir = path.dirname(dirName);  // 例: Dropbox/
   const snakeFilePath = path.join(dirName,"_"+fileName)// 例: -20250725.md
-  console.log(snakeFilePath)
+
   if (fs.existsSync(snakeFilePath)) {
     console.log("ファイルは存在しています")
     return snakeFilePath
@@ -588,6 +575,7 @@ function toggleSnakememo(filePath){
 
 
 }
+
 function levelDateInFilename(filePath) {
   const fileName = path.basename(filePath); // 例: 20250725.md
   const dirName = path.dirname(filePath);   // 例: Dropbox/logtext
@@ -624,3 +612,16 @@ function levelDateInFilename(filePath) {
 }
 
 
+//イベントを発生させたウィンドウの中身をファイル内容で上書きする
+function linkOpenAndLoadFile(event,filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    event.sender.send("load-file", { filePath: filePath, content });
+    const startWindow = BrowserWindow.fromWebContents(event.sender)
+    startWindow.currentFilePath = filePath;
+    console.log(startWindow.currentFilePath)
+
+  } catch (err) {
+    dialog.showErrorBox("読み込みエラー", `ファイルを開けませんでした: ${filePath}`);
+  }
+}
