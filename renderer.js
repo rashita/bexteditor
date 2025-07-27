@@ -243,12 +243,6 @@ function toggleFoldCode(view) {
   return true;
 }
 
-function slideUp(){
-  console.log("slideUp")
-}
-function slideDown(){
-  console.log("slideDown")
-}
 // カスタムのキーバインディング
 const customKeymap = keymap.of([
   {

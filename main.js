@@ -32,10 +32,17 @@ if (!process.defaultApp && process.argv.length >= 2) {
 
 const windows = new Set();
 
-function createWindow() {
+function createWindow(parent = null) {
+  const [parentX, parentY] = parent
+  ? [parent.getBounds().x + parent.getBounds().width, parent.getBounds().y] // 親の横にぴたりとつける
+  : [null, null]; // fallback
+  const toggleWidth = parent ? 400:800 //子ウィンドウなら半分に
   const win = new BrowserWindow({
-    width: 800,
+    width: toggleWidth,
     height: 600,
+    parent:parent,
+    x: parentX ,  // 親の右下に少しずらす
+    y: parentY ,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -46,6 +53,7 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'index.html'));
 
   win.on('close', (event) => {
+    return //すぐに閉じる
     event.preventDefault(); // ウィンドウが閉じるのを一旦キャンセル
 
     // レンダラープロセスに問い合わせて、ファイルのダーティ状態を確認
@@ -175,13 +183,30 @@ ipcMain.on("open-link", async (event, linkText,currentFilePath) => {
     // 既存ファイルを開く
     console.log(newPath + "は存在しています");
     try {
-       console.log(newPath + "を読み込みます");
+      console.log(newPath + "を読み込みます");
       const content = fs.readFileSync(newPath, 'utf-8');
       event.sender.send("load-file", { filePath: newPath, content });
     } catch (e) {
       dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
     }
-  } 
+  } else{
+    console.log(newPath + "は存在しないので子フォルダを探します");
+    const entries = fs.readdirSync(dirName, { withFileTypes: true });
+    for (const entry of entries) {
+    if (entry.isDirectory()) {
+      const childIndex = path.join(dirName, entry.name, NewFileName);
+      if (fs.existsSync(childIndex)) {
+        try {
+            console.log(childIndex + "を読み込みます");
+            const content = fs.readFileSync(childIndex, 'utf-8');
+            event.sender.send("load-file", { filePath: childIndex, content });
+          } catch (e) {
+            dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
+          }
+      }
+    }
+  }
+  }
 
 
   return
@@ -317,14 +342,15 @@ const menuTemplate = [
 let openFileQueue = []
 
 
-function openFileFromPath(filePath) {
+function openFileFromPath(filePath,parent=null) {
   console.log("ファイルから" + filePath + "ウィンドウを作成します")
-  const newWindow = createWindow();
+  const newWindow = createWindow(parent);
   newWindow.webContents.once('did-finish-load', () => {
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
       newWindow.webContents.send('load-file', { filePath, content });
       app.addRecentDocument(filePath);
+      console.log(newWindow.getParentWindow())
     } catch (e) {
       console.error('Failed to read file', e);
     }
@@ -493,16 +519,23 @@ ipcMain.on("shift-file", async (event, currentPath,offsetDays) => {
 
 //ファイル上下移動のためのイベントリスナ
 ipcMain.on("level-file", async (event, currentPath,isUp) => {
-  console.log(currentPath,isUp)
-  const newPath = levelDateInFilename(currentPath,isUp);
-  if (fs.existsSync(newPath)) {
-    console.log(newPath + "は存在しています");
-    try {
-      console.log(newPath + "を読み込みます");
-      const content = fs.readFileSync(newPath, 'utf-8');
-      event.sender.send("load-file", { filePath: newPath, content });
-    } catch (e) {
-      dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
+  const parentWindow = BrowserWindow.fromWebContents(event.sender)
+  console.log(parentWindow)
+  if(isUp){
+    const newPath = levelDateInFilename(currentPath);
+    if (newPath) {
+      try {
+        console.log(newPath + "を読み込みます");
+        const content = fs.readFileSync(newPath, 'utf-8');
+        event.sender.send("load-file", { filePath: newPath, content });
+      } catch (e) {
+        dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
+      }
+    }
+  }else{
+    const newPath = toggleSnakememo(currentPath)
+    if (newPath) {
+      openFileFromPath(newPath,parentWindow)
     }
 
   }
@@ -540,18 +573,54 @@ ipcMain.on("level-file", async (event, currentPath,isUp) => {
   }
 });
 
-function levelDateInFilename(filePath, offsetDays) {
+function toggleSnakememo(filePath){
   const fileName = path.basename(filePath); // 例: 20250725.md
   const dirName = path.dirname(filePath);   // 例: Dropbox/logtext
+  const parentDir = path.dirname(dirName);  // 例: Dropbox/
+  const snakeFilePath = path.join(dirName,"_"+fileName)// 例: -20250725.md
+  console.log(snakeFilePath)
+  if (fs.existsSync(snakeFilePath)) {
+    console.log("ファイルは存在しています")
+    return snakeFilePath
+  }else{
+    console.log("ファイルは存在していません")
+  }
+
+
+}
+function levelDateInFilename(filePath) {
+  const fileName = path.basename(filePath); // 例: 20250725.md
+  const dirName = path.dirname(filePath);   // 例: Dropbox/logtext
+  const parentDir = path.dirname(dirName);  // 例: Dropbox/
   const matchData = fileName.match(/(\d{4})(\d{2})(\d{2})\.md$/);
-  if (matchData) return matchData;
+  if (matchData) {
+    const [_, year, month, day] = match;
+    const newFileName = `${year}${month}.md`;
+    const monthIndex = path.join(dirName, newFileName)
+    if (fs.existsSync(monthIndex)) {
+      return monthIndex;
+    }else{
+      console.log("月ノートはありません")
+    }
+  }
 
   const matchChapter = fileName.match(/chapter(\d{2})\.md$/);
 
-  if (matchChapter) {
-    return path.join(dirName, "index.md")
+  //同じフォルダでindex.mdを探す
+  const indexInCurrent = path.join(dirName, "index.md");
+   if (fs.existsSync(indexInCurrent)) {
+    return indexInCurrent;
   }
 
-  return ;
+  //親フォルダでindex.mdを探す
+  const indexInParent = path.join(parentDir, "index.md");
+  if (fs.existsSync(indexInParent)) {
+    return indexInParent;
+  }
+
+  return null;
+
 
 }
+
+
