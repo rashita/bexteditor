@@ -513,8 +513,8 @@ ipcMain.on("level-file", async (event, currentPath,isUp) => {
       linkOpenAndLoadFile(event,newPath)
     }
   }else{
-    const newPath = toggleSnakememo(currentPath)
-    if (newPath) {
+    const newPath = getSnakememo(currentPath)
+    if (fs.existsSync(newPath)) {
       for (const win of windows) {
        if (win.currentFilePath === newPath) {
         console.log("すでにそのファイルは開かれています")
@@ -522,7 +522,22 @@ ipcMain.on("level-file", async (event, currentPath,isUp) => {
         return
         }
       }
-      openFileFromPath(newPath,parentWindow)
+      openFileFromPath(newPath,parentWindow)//開いていなければ新しく開く
+    }else{//ファイルが存在していない
+      const { response } = await dialog.showMessageBox({
+        type: "question",
+        buttons: ["作成", "キャンセル"],
+        defaultId: 0,
+        cancelId: 1,
+        message: `${newPath} は存在しません。作成しますか？`
+      });
+      if (response === 0) {
+        console.log("作成を受諾しました")
+        fs.writeFileSync(newPath, ""); // 空ファイル作成
+        openFileFromPath(newPath,parentWindow)
+      }
+
+
     }
 
   }
@@ -560,20 +575,12 @@ ipcMain.on("level-file", async (event, currentPath,isUp) => {
   }
 });
 
-function toggleSnakememo(filePath){
+function getSnakememo(filePath){
   const fileName = path.basename(filePath); // 例: 20250725.md
   const dirName = path.dirname(filePath);   // 例: Dropbox/logtext
   const parentDir = path.dirname(dirName);  // 例: Dropbox/
   const snakeFilePath = path.join(dirName,"_"+fileName)// 例: -20250725.md
-
-  if (fs.existsSync(snakeFilePath)) {
-    console.log("ファイルは存在しています")
-    return snakeFilePath
-  }else{
-    console.log("ファイルは存在していません")
-  }
-
-
+  return snakeFilePath
 }
 
 function levelDateInFilename(filePath) {
