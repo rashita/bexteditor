@@ -179,7 +179,8 @@ ipcMain.on("open-link", async (event, linkText,currentFilePath) => {
   const fileName = path.basename(currentFilePath); // 例: 20250725.md
   const dirName = path.dirname(currentFilePath);   // 例: Dropbox/logtext
   const NewFileName = linkText + ".md"
-  const newPath = path.join(dirName , NewFileName)
+  const newPath = path.resolve(dirName, NewFileName);
+  //const newPath = path.join(dirName , NewFileName)
   console.log(newPath + "を内部リンクとして処理します");
   if (fs.existsSync(newPath)) {
     // 既存ファイルを開く
@@ -460,10 +461,32 @@ app.on('window-all-closed', () => {
 });
 
 
+function shiftpagination(filePath, direction = 1){
+  const fileName = path.basename(filePath); 
+  const dirName = path.dirname(filePath);  
+  const match = fileName.match(/^([a-zA-Z_\-]+)(\d{2,3})\.md$/);
+  if (!match) return null;
+
+  const prefix = match[1];          // "chapter"
+  const numberStr = match[2];       // "05" or "001"
+  const number = parseInt(numberStr, 10);
+  const newNumber = number + direction;
+
+  if (newNumber < 0) return null;   // マイナスは禁止など任意で制限
+
+  // ゼロ埋めの桁数を保つ
+  const padded = String(newNumber).padStart(numberStr.length, '0');
+
+  const newFileName = `${prefix}${padded}.md`;
+  return path.join(dirName, newFileName);
+
+}
+//ファイルの日付を動かす
 function shiftDateInFilename(filePath, offsetDays) {
   const fileName = path.basename(filePath); // 例: 20250725.md
   const dirName = path.dirname(filePath);   // 例: Dropbox/logtext
   const match = fileName.match(/(\d{4})(\d{2})(\d{2})\.md$/);
+
   if (!match) return null;
 
   const [_, year, month, day] = match;
@@ -477,9 +500,19 @@ function shiftDateInFilename(filePath, offsetDays) {
 
 //ファイル左右移動のためのイベントリスナ
 ipcMain.on("shift-file", async (event, currentPath,offsetDays) => {
-  const newPath = shiftDateInFilename(currentPath,offsetDays);
+
+  const newPath = (() => {
+    const shifted = shiftDateInFilename(currentPath, offsetDays);
+    if (shifted) return shifted;
+
+    const numbered = shiftpagination(currentPath, offsetDays);
+    if (numbered) return numbered;
+
+    return null;
+  })();
+
   if (!newPath) {
-    console.log("エラー", "ファイル名に日付が含まれていません。");
+    console.log("ファイル名に数字が含まれていません。");
     return;
   }
 
@@ -544,37 +577,10 @@ ipcMain.on("level-file", async (event, currentPath,isUp) => {
 
   
   return
-  if (!newPath) {
-    console.log("エラー", "ファイル名に日付が含まれていません。");
-    return;
-  }
 
-  if (fs.existsSync(newPath)) {
-    // 既存ファイルを開く
-    console.log(newPath + "は存在しています");
-    try {
-       console.log(newPath + "を読み込みます");
-      const content = fs.readFileSync(newPath, 'utf-8');
-      event.sender.send("load-file", { filePath: newPath, content });
-    } catch (e) {
-      dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
-    }
-  } else {
-    const { response } = await dialog.showMessageBox({
-      type: "question",
-      buttons: ["作成", "キャンセル"],
-      defaultId: 0,
-      cancelId: 1,
-      message: `${path.basename(newPath)} は存在しません。作成しますか？`
-    });
-
-    if (response === 0) {
-      //fs.writeFileSync(newPath, ""); // 空ファイル作成
-      //event.sender.send("open-file", newPath);
-    }
-  }
 });
 
+//_がついたファイル名を取得
 function getSnakememo(filePath){
   const fileName = path.basename(filePath); // 例: 20250725.md
   const dirName = path.dirname(filePath);   // 例: Dropbox/logtext
@@ -583,12 +589,13 @@ function getSnakememo(filePath){
   return snakeFilePath
 }
 
+//上のファイルに移動
 function levelDateInFilename(filePath) {
   const fileName = path.basename(filePath); // 例: 20250725.md
   const dirName = path.dirname(filePath);   // 例: Dropbox/logtext
   const parentDir = path.dirname(dirName);  // 例: Dropbox/
   const matchData = fileName.match(/(\d{4})(\d{2})(\d{2})\.md$/);
-  if (matchData) {
+  if (matchData) {//日付ノートの場合は、月ノートに移動 ただし現状はフォルダ構造にあっていない
     const [_, year, month, day] = match;
     const newFileName = `${year}${month}.md`;
     const monthIndex = path.join(dirName, newFileName)
@@ -598,8 +605,6 @@ function levelDateInFilename(filePath) {
       console.log("月ノートはありません")
     }
   }
-
-  const matchChapter = fileName.match(/chapter(\d{2})\.md$/);
 
   //同じフォルダでindex.mdを探す
   const indexInCurrent = path.join(dirName, "index.md");

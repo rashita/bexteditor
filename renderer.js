@@ -169,11 +169,29 @@ window.currentFilePath = null;
 let isDirty = false;
 let editorView; // To hold the EditorView instance
 
+
+let saveTimeout = null;
+const AUTO_SAVE_DELAY = 2000; // 2秒
+
+function autoSaveHandler() {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async() => {
+    if (!window.currentFilePath) return;
+    if (!isDirty) return;
+    console.log("自動保存します")
+    await　saveCurrentFile();          // 保存処理
+    setDirtyState(false);       // 保存後に isDirty をリセットしてタイトル更新
+  }, AUTO_SAVE_DELAY);
+}
+
+
 // --- 1. タイトル更新をメインプロセスに依頼する関数 ---
 function updateTitle() {
+  const shouldShowAsterisk = isDirty && !window.currentFilePath;
+
   window.electronAPI.updateTitle({
     filePath: window.currentFilePath,
-    isDirty
+    isDirty: shouldShowAsterisk
   });
 }
 
@@ -182,12 +200,14 @@ function setDirtyState(dirty) {
   if (isDirty === dirty) return;
   isDirty = dirty;
   updateTitle();
+
 }
 
 // --- 3. CodeMirror の変更を監視し、isDirty を true にするリスナー ---
 const updateListener = EditorView.updateListener.of((update) => {
   if (update.docChanged) {
     setDirtyState(true);
+    autoSaveHandler()
   }
 });
 
