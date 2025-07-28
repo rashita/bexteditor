@@ -59,10 +59,45 @@
           border-top: 1px solid #ccc;
           font-family: monospace;
         }
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background: rgba(0, 0, 0, 0.3); /* モーダル外の薄い背景 */
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 999;
+        }
+
+        .modal {
+          background: #1e1e1e;
+          color: white;
+          border: 1px solid #444;
+          border-radius: 6px;
+          padding: 1em;
+          width: 400px;
+          height: 500px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        .hidden {
+          display: none;
+        }
     </style>
   </head>
   <body>
     <div id="editor"></div>
+    <!-- モーダル -->
+    <div id="modalOverlay" class="modal-overlay hidden">
+      <div id="modal" class="modal">
+        <input type="text" id="modalInput" placeholder="ファイル名またはタグを入力…" />
+        <ul id="modalResults"></ul>
+      </div>
+    </div>
+
     <script defer src="./dist/bundle.js"></script>
   </body>
 </html>

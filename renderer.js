@@ -15,6 +15,8 @@ import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemir
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
 
+const isAUtoSave = false //自動保存機能のトグル
+
 //文字数カウント用のプラグイン
 const charCountPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
@@ -165,11 +167,14 @@ const markdownWithGFM = markdown({
   codeLanguages: languages, // ← GFMなど含まれる
 });
 
+// --- 基礎的な変数 ---
+
 window.currentFilePath = null;
 let isDirty = false;
 let editorView; // To hold the EditorView instance
 
 
+// --- オートセーブ周りの設定 ---
 let saveTimeout = null;
 const AUTO_SAVE_DELAY = 2000; // 2秒
 
@@ -187,7 +192,7 @@ function autoSaveHandler() {
 
 // --- 1. タイトル更新をメインプロセスに依頼する関数 ---
 function updateTitle() {
-  const shouldShowAsterisk = isDirty && !window.currentFilePath;
+  const shouldShowAsterisk = isAUtoSave?isDirty && !window.currentFilePath:isDirty;
 
   window.electronAPI.updateTitle({
     filePath: window.currentFilePath,
@@ -207,7 +212,7 @@ function setDirtyState(dirty) {
 const updateListener = EditorView.updateListener.of((update) => {
   if (update.docChanged) {
     setDirtyState(true);
-    autoSaveHandler()
+    if(isAUtoSave)autoSaveHandler()
   }
 });
 
@@ -716,6 +721,34 @@ const imagePlugin = ViewPlugin.fromClass(class {
 // --- 初期化処理 ---
 initializeEditor();
 updateTitle();
+
+//エディタ外のショートカットキー
+const modalOverlay = document.getElementById("modalOverlay");
+const modalInput = document.getElementById("modalInput");
+
+// ⌘+O でモーダル表示
+document.addEventListener("keydown", (e) => {
+  const isMac = navigator.userAgent.includes("Mac");
+  const isCmdO = (isMac && e.metaKey && e.key === "o") || (!isMac && e.ctrlKey && e.key === "o");
+
+  if (isCmdO) {
+    e.preventDefault();
+    modalOverlay.classList.remove("hidden");
+    modalInput.focus();
+  }
+
+  if (e.key === "Escape") {
+    modalOverlay.classList.add("hidden");
+  }
+});
+
+// モーダル外クリックで閉じる
+modalOverlay.addEventListener("click", (e) => {
+  if (e.target === modalOverlay) {
+    modalOverlay.classList.add("hidden");
+  }
+});
+
 
 
 console.log('Renderer script with CodeMirror loaded.');
