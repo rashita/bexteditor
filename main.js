@@ -1,8 +1,10 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, nativeImage } = require('electron');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const log = require('electron-log')
 const { program } = require ("commander")
+const { addToHistory,loadHistory } = require('./history.js');
 
 console.log = (...args) => log.info(...args)
 console.error = (...args) => log.error(...args)
@@ -27,7 +29,6 @@ let fileToOpen = null
 if (!process.defaultApp && process.argv.length >= 2) {
   fileToOpen = process.argv[1];
 }
-
 
 
 const windows = new Set();
@@ -111,6 +112,9 @@ async function openFileInNewWindow() {
         newWindow.webContents.send('load-file', { filePath, content });
         //開いているファイルをmain.jsでも扱えるように
         newWindow.currentFilePath = filePath;
+        const firstLine = content.split('\n')[0].trim();
+        const title = firstLine || path.basename(filePath); 
+        addToHistory(filePath, title);
       } catch (e) {
         console.error('Failed to read file', e);
         // ここでユーザーにエラーを通知することもできます
@@ -344,6 +348,9 @@ function openFileFromPath(filePath,parent=null) {
 
       //開いているファイルをmain.jsでも扱えるように
       newWindow.currentFilePath = filePath;
+      const firstLine = content.split('\n')[0].trim();
+      const title = firstLine || path.basename(filePath); 
+      addToHistory(filePath, title);
     } catch (e) {
       console.error('Failed to read file', e);
     }
@@ -404,14 +411,10 @@ app.whenReady().then(() => {
   }
 
 
-
   const menu = Menu.buildFromTemplate(menuTemplate);
   Menu.setApplicationMenu(menu);
 
  
-
-  
-
   app.on('activate', (event, hasVisibleWindows) => {
     console.log("active" + event)
     if (windows.size === 0) {
@@ -596,9 +599,10 @@ function levelDateInFilename(filePath) {
   const parentDir = path.dirname(dirName);  // 例: Dropbox/
   const matchData = fileName.match(/(\d{4})(\d{2})(\d{2})\.md$/);
   if (matchData) {//日付ノートの場合は、月ノートに移動 ただし現状はフォルダ構造にあっていない
-    const [_, year, month, day] = match;
+    const [_, year, month, day] = matchData;
     const newFileName = `${year}${month}.md`;
     const monthIndex = path.join(dirName, newFileName)
+    console.log(monthIndex)
     if (fs.existsSync(monthIndex)) {
       return monthIndex;
     }else{
@@ -620,9 +624,7 @@ function levelDateInFilename(filePath) {
 
   return null;
 
-
 }
-
 
 //イベントを発生させたウィンドウの中身をファイル内容で上書きする
 function linkOpenAndLoadFile(event,filePath) {
@@ -636,4 +638,45 @@ function linkOpenAndLoadFile(event,filePath) {
   } catch (err) {
     dialog.showErrorBox("読み込みエラー", `ファイルを開けませんでした: ${filePath}`);
   }
+}
+
+
+// 📦 モーダル用ファイル読み取り処理
+ipcMain.handle("read-markdown-file", async (_, filename = "202507.md") => {
+  const filePath = path.join(__dirname, filename);
+  try {
+    const history = loadHistory()
+    const historyContent = history
+    .map(entry => "[["+shortenPath(entry.filePath)+"]]")  // ファイルパスだけ取り出す
+    .join('\n');    
+    //return { success: true, historyContent };
+    const mapContent = fs.readFileSync(filename, "utf-8");
+    const content = mapContent + historyContent
+    console.log(content)
+    return { success: true, content };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.on('request-open-file', (event, filePath) => {
+  openFileFromPath(expandPath(filePath));
+});
+
+//ファイルパスのユーザーホームの部分を~に変換
+function shortenPath(filePath) {
+  const home = require('os').homedir();
+  let shortened = filePath;
+  if (filePath.startsWith(home)) {
+    shortened = '~' + filePath.slice(home.length);
+  }
+  return shortened;
+}
+
+//ファイルパスの~/の部分をユーザーホームに変換
+function expandPath(p) {
+  if (p.startsWith('~/')) {
+    return path.join(os.homedir(), p.slice(2));
+  }
+  return p;
 }

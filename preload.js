@@ -11,5 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onLoadFile: (callback) => ipcRenderer.on('load-file', (event, data) => callback(data)),
   openLink: (linkText,currentFilePath) => ipcRenderer.send("open-link", linkText,currentFilePath),
   shiftFile: (filePath,offsetDays) => ipcRenderer.send('shift-file', filePath,offsetDays),
-  levelFile: (filePath,isUp) => ipcRenderer.send('level-file', filePath,isUp)
+  levelFile: (filePath,isUp) => ipcRenderer.send('level-file', filePath,isUp),
+  readMarkdownFile: (filename) => ipcRenderer.invoke("read-markdown-file", filename),
+  openFile: (filePath) => ipcRenderer.send('request-open-file', filePath)
 });

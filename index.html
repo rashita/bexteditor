@@ -59,6 +59,9 @@
           border-top: 1px solid #ccc;
           font-family: monospace;
         }
+
+
+        /* モーダル関係 */
         .modal-overlay {
           position: fixed;
           top: 0;
@@ -78,7 +81,7 @@
           border: 1px solid #444;
           border-radius: 6px;
           padding: 1em;
-          width: 400px;
+          width: 420px;
           height: 500px;
           box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
@@ -86,15 +89,40 @@
         .hidden {
           display: none;
         }
+        .cm-code-block {
+          background-color: #f5f5f5;
+          font-family: monospace;
+          padding: 0.5em;
+          border-radius: 4px;
+          display: block;
+          white-space: pre;
+        }
+
+        .cm-code-inline {
+          background-color: #eee;
+          font-family: monospace;
+          padding: 0 0.25em;
+          border-radius: 3px;
+        }
     </style>
   </head>
   <body>
     <div id="editor"></div>
-    <!-- モーダル -->
-    <div id="modalOverlay" class="modal-overlay hidden">
-      <div id="modal" class="modal">
-        <input type="text" id="modalInput" placeholder="ファイル名またはタグを入力…" />
-        <ul id="modalResults"></ul>
+    <!-- ⌘+O 用モーダル -->
+    <div id="modalOverlayO" class="modal-overlay hidden">
+      <div class="modal">
+        <input type="text" id="modalInputO" placeholder="taskmanegment/index" />
+        <div id="modal-editor"></div>
+        <ul id="modalResultsO">
+        </ul>
+      </div>
+    </div>
+
+    <!-- ⌘+P 用モーダル -->
+    <div id="modalOverlayP" class="modal-overlay hidden">
+      <div class="modal">
+        <input type="text" id="modalInputP" placeholder="アクションを入力…" />
+        <ul id="modalResultsP"></ul>
       </div>
     </div>
 

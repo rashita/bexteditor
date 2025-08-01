@@ -45,6 +45,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "history.js",
       "index.html",
       "dist/bundle.js",
       "build/"

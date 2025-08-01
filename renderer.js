@@ -223,6 +223,9 @@ const myHighlightStyle = HighlightStyle.define([
   { tag: tags.heading, class: 'cm-header' },
   { tag: tags.strong,  class: 'cm-strong' },
   { tag: tags.list, class: 'cm-bullet-list-mark' },
+  // コードブロック用のスタイル
+  { tag: tags.codeBlock, class: 'cm-code-block' },
+  { tag: tags.monospace, class: 'cm-code-inline' }, 
 ]);
 
 
@@ -723,31 +726,143 @@ initializeEditor();
 updateTitle();
 
 //エディタ外のショートカットキー
-const modalOverlay = document.getElementById("modalOverlay");
-const modalInput = document.getElementById("modalInput");
 
-// ⌘+O でモーダル表示
-document.addEventListener("keydown", (e) => {
-  const isMac = navigator.userAgent.includes("Mac");
+//モーダル操作
+const isMac = navigator.userAgent.includes("Mac");
+
+// DOM取得
+const modalOverlayO = document.getElementById("modalOverlayO");
+const modalInputO = document.getElementById("modalInputO");
+const modalOverlayP = document.getElementById("modalOverlayP");
+const modalInputP = document.getElementById("modalInputP");
+let modalEditor = document.getElementById("modal-editor");
+
+// キーボード操作
+document.addEventListener("keydown", async (e) => {
   const isCmdO = (isMac && e.metaKey && e.key === "o") || (!isMac && e.ctrlKey && e.key === "o");
+  const isCmdP = (isMac && e.metaKey && e.key === "p") || (!isMac && e.ctrlKey && e.key === "p");
 
   if (isCmdO) {
     e.preventDefault();
-    modalOverlay.classList.remove("hidden");
-    modalInput.focus();
+    const result = await window.electronAPI.readMarkdownFile("/Users/Tadanori/Library/CloudStorage/Dropbox/logText/2025/202507.md");
+    
+    if (result.success) {
+      console.log("読み込みは成功です")
+      showModalWithContent(result.content);
+    } else {
+      alert("ファイル読み込み失敗: " + result.error);
+    }
+    modalOverlayO.classList.remove("hidden");
+    modalInputO.focus();
+  }
+
+  if (isCmdP) {
+    e.preventDefault();
+    modalOverlayP.classList.remove("hidden");
+    modalInputP.focus();
   }
 
   if (e.key === "Escape") {
-    modalOverlay.classList.add("hidden");
+    modalOverlayO.classList.add("hidden");
+    modalOverlayP.classList.add("hidden");
   }
 });
 
-// モーダル外クリックで閉じる
-modalOverlay.addEventListener("click", (e) => {
-  if (e.target === modalOverlay) {
-    modalOverlay.classList.add("hidden");
-  }
+// 背景クリックでそれぞれ閉じる
+modalOverlayO.addEventListener("click", (e) => {
+  if (e.target === modalOverlayO) modalOverlayO.classList.add("hidden");
 });
+modalOverlayP.addEventListener("click", (e) => {
+  if (e.target === modalOverlayP) modalOverlayP.classList.add("hidden");
+});
+
+
+function showModalWithContent(content) {
+  modalEditor.innerHTML = ""; // 再表示時の初期化
+
+  const smallFontTheme = EditorView.theme({
+    '&': {
+    },
+    '.cm-content': {
+      fontSize: '12px',
+      fontFamily: 'monospace',
+    },
+    '.cm-scroller': {
+      fontSize: '12px',
+    }
+
+  });
+
+  const view = new EditorView({
+    doc: content,
+    extensions: [
+      smallFontTheme,
+      EditorView.lineWrapping,
+      fileLinkPlugin,
+      markdown(),
+      EditorView.editable.of(false), // 読み取り専用
+    ],
+    parent: modalEditor,
+  });
+
+  setupClick(view);
+
+
+}
+
+const fileLinkPlugin = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.decorations = this.buildDecorations(view);
+  }
+
+  update(update) {
+    if (update.docChanged || update.viewportChanged) {
+      this.decorations = this.buildDecorations(update.view);
+    }
+  }
+
+  buildDecorations(view) {
+    const builder = new RangeSetBuilder();
+    const regex = /\[\[([^\]]+)\]\]/g;
+
+    for (let { from, to } of view.visibleRanges) {
+      const text = view.state.doc.sliceString(from, to);
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        const start = from + match.index;
+        const end = start + match[0].length;
+        const filePath = match[1];
+
+        const deco = Decoration.mark({
+          attributes: {
+            class: 'file-link',
+            'data-filepath': filePath
+          }
+        });
+
+        builder.add(start, end, deco);
+      }
+    }
+
+    return builder.finish();
+  }
+
+  destroy() {}
+
+}, {
+  decorations: v => v.decorations
+});
+
+function setupClick(view) {
+  view.dom.addEventListener('click', (e) => {
+    const target = e.target.closest('.file-link');
+    if (target) {
+      const filePath = target.dataset.filepath;
+      console.log('開くファイル:', filePath);
+      window.electronAPI.openFile(filePath);
+    }
+  });
+}
 
 
 
