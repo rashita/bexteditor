@@ -1,0 +1,16 @@
+# Dependencies
+/node_modules
+
+# Build artifacts
+/dist
+
+# macOS
+.DS_Store
+
+# self
+bextEditor.code-workspace
+
+history.json
+
+# .md
+idea.md
