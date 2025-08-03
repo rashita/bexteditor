@@ -5,6 +5,7 @@ const path = require('path');
 const log = require('electron-log')
 const { program } = require ("commander")
 const { addToHistory,loadHistory } = require('./history.js');
+const chokidar = require('chokidar');
 
 console.log = (...args) => log.info(...args)
 console.error = (...args) => log.error(...args)
@@ -32,6 +33,10 @@ if (!process.defaultApp && process.argv.length >= 2) {
 
 
 const windows = new Set();
+const watcherMap = new Map(); // filePath → fs.FSWatcher
+//複数のウィンドウで同じファイルを開いたときに、このやり方はうまくいかない気がする
+//ウィンドウごとにwatcherを登録した方がよい
+
 
 function createWindow(parent = null) {
   const [parentX, parentY] = parent
@@ -187,20 +192,21 @@ ipcMain.on("open-link", async (event, linkText,currentFilePath) => {
   //const newPath = path.join(dirName , NewFileName)
   console.log(newPath + "を内部リンクとして処理します");
   if (fs.existsSync(newPath)) {
-    // 既存ファイルを開く
+    // ファイルを開く
     console.log(newPath + "は存在しています");
     linkOpenAndLoadFile(event,newPath)
   } else{
     console.log(newPath + "は存在しないので子フォルダを探します");
     const entries = fs.readdirSync(dirName, { withFileTypes: true });
     for (const entry of entries) {
-    if (entry.isDirectory()) {
-      const childIndex = path.join(dirName, entry.name, NewFileName);
-      if (fs.existsSync(childIndex)) {
-        linkOpenAndLoadFile(event,childIndex)
+      if (entry.isDirectory()) {
+        const childIndex = path.join(dirName, entry.name, NewFileName);
+        if (fs.existsSync(childIndex)) {
+          linkOpenAndLoadFile(event,childIndex)
+          //ウォッチャーが存在するなら消す
+        }
       }
     }
-  }
   }
 
 
@@ -351,6 +357,26 @@ function openFileFromPath(filePath,parent=null) {
       const firstLine = content.split('\n')[0].trim();
       const title = firstLine || path.basename(filePath); 
       addToHistory(filePath, title);
+
+      //file wachterの追加
+      if(!newWindow.currentWacher){
+        console.log("ウォッチャーを登録します")
+        //複数ウォッチャーを指定するならmap()にする
+        newWindow.currentWacher = chokidar.watch(filePath, {
+          usePolling: false,
+          ignoreInitial: true,
+          awaitWriteFinish: {
+            stabilityThreshold: 300,
+            pollInterval: 100
+          }
+        });
+        newWindow.currentWacher.on('change', () => {
+          const newContent = fs.readFileSync(filePath, 'utf-8');
+          newWindow.webContents.send('file-updated', {filePath,newContent});
+        });
+      }
+
+
     } catch (e) {
       console.error('Failed to read file', e);
     }
@@ -634,6 +660,26 @@ function linkOpenAndLoadFile(event,filePath) {
     const startWindow = BrowserWindow.fromWebContents(event.sender)
     startWindow.currentFilePath = filePath;
     console.log(startWindow.currentFilePath)
+    //新しいウォッチャーを登録するよ
+    if (startWindow.currentWacher){
+      console.log("古いウォッチャーを解除します")
+      startWindow.currentWacher.close()
+    }
+    console.log("ウォッチャーを登録します")
+
+    startWindow.currentWacher = chokidar.watch(filePath, {
+      usePolling: false,
+      ignoreInitial: true,
+      awaitWriteFinish: {
+        stabilityThreshold: 300,
+        pollInterval: 100
+      }
+    });
+    startWindow.currentWacher.on('change', () => {
+      const newContent = fs.readFileSync(filePath, 'utf-8');
+      startWindow.webContents.send('file-updated', {filePath,newContent});
+    });
+
 
   } catch (err) {
     dialog.showErrorBox("読み込みエラー", `ファイルを開けませんでした: ${filePath}`);
@@ -642,21 +688,25 @@ function linkOpenAndLoadFile(event,filePath) {
 
 
 // 📦 モーダル用ファイル読み取り処理
-ipcMain.handle("read-markdown-file", async (_, filename = "202507.md") => {
-  const filePath = path.join(__dirname, filename);
-  try {
-    const history = loadHistory()
-    const historyContent = history
+ipcMain.handle("read-markdown-file", async (_, fileFullPath) => {
+
+  const history = loadHistory()
+  const content  = history
     .map(entry => "[["+shortenPath(entry.filePath)+"]]")  // ファイルパスだけ取り出す
-    .join('\n');    
-    //return { success: true, historyContent };
-    const mapContent = fs.readFileSync(filename, "utf-8");
-    const content = mapContent + historyContent
-    console.log(content)
-    return { success: true, content };
-  } catch (err) {
-    return { success: false, error: err.message };
+    .join('\n');
+
+  if(!fileFullPath)return content
+
+  const upFilePath = levelDateInFilename(fileFullPath)
+
+  if(upFilePath) {
+    const mapContent = fs.readFileSync(upFilePath, "utf-8");
+    return (content + "\n\n" + mapContent)
   }
+
+  return content
+  
+
 });
 
 ipcMain.on('request-open-file', (event, filePath) => {

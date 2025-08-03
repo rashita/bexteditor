@@ -23,17 +23,24 @@
         "CFBundleDocumentTypes": [
           {
             "CFBundleTypeName": "Markdown Document",
-            "CFBundleTypeExtensions": ["md", "markdown"],
+            "CFBundleTypeExtensions": [
+              "md",
+              "markdown"
+            ],
             "CFBundleTypeRole": "Editor",
             "CFBundleTypeIconFile": "document.icns"
           },
           {
-            "CFBundleTypeName": "Text Document", 
-            "CFBundleTypeExtensions": ["txt", "text"],
+            "CFBundleTypeName": "Text Document",
+            "CFBundleTypeExtensions": [
+              "txt",
+              "text"
+            ],
             "CFBundleTypeRole": "Editor",
             "CFBundleTypeIconFile": "document.icns"
           }
-        ]},
+        ]
+      },
       "identity": null
     },
     "protocols": {
@@ -62,6 +69,7 @@
     "@codemirror/language-data": "^6.5.1",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.0",
+    "chokidar": "^4.0.3",
     "codemirror": "^6.0.2",
     "commander": "^14.0.0",
     "electron-log": "^5.4.1"

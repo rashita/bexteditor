@@ -164,7 +164,7 @@ class InternalLinkWidget extends WidgetType{
 
 const markdownWithGFM = markdown({
   base: markdownLanguage,
-  codeLanguages: languages, // ← GFMなど含まれる
+  codeLanguages: languages// ← GFMなど含まれる
 });
 
 // --- 基礎的な変数 ---
@@ -224,8 +224,9 @@ const myHighlightStyle = HighlightStyle.define([
   { tag: tags.strong,  class: 'cm-strong' },
   { tag: tags.list, class: 'cm-bullet-list-mark' },
   // コードブロック用のスタイル
-  { tag: tags.codeBlock, class: 'cm-code-block' },
+  { tag: tags.quote, class: 'cm-quote' },
   { tag: tags.monospace, class: 'cm-code-inline' }, 
+  
 ]);
 
 
@@ -623,23 +624,37 @@ const checklistPlugin = ViewPlugin.fromClass(class {
       enter: (node) => {
         if (node.name === "TaskMarker") {
           if (selection.from >= node.from && selection.from <= node.to) {
-          // カーソル行は元テキストを表示するのでスルー
-          return;
-        }
+          // カーソルがチェックボックスないに入ったら表示を戻す
+            return;
+          
+          }
 
-          // const overlap = !(node.to < lineFrom || node.from > lineTo);
-          // if (overlap) {
-          //   // カーソルのある行にTaskMarkerがあれば置換しない
-          //   return;
-          // }
+          const line = view.state.doc.lineAt(node.from);
+          const lineText = view.state.doc.sliceString(line.from, node.to);
+          if (!/^\s*[-*]\s+\[[ xX]\]/.test(lineText)) {
+            return;
+          }
+
+
           const text = view.state.doc.sliceString(node.from, node.to);
           const checked = /\[x\]/i.test(text);
+          //const checked = /\[x\]/i.test(text);
           widgets.push(
             Decoration.replace({
               widget: new CheckboxWidget(checked, node.from, node.to, view),
               inclusive: false
-            }).range(node.from, node.to)
+            }).range(line.from, node.to)//node.fromから変更
           );
+
+          //親要素操作のテスト.以下を参照。
+          //https://chatgpt.com/c/688fe965-95d4-8011-bd4f-b39fc9181e03 
+          widgets.push(
+            Decoration.line({
+              attributes: { style: "padding-left: 0.5em;"}
+            }).range(line.from)
+          );
+
+
         }
       }
     });
@@ -744,13 +759,14 @@ document.addEventListener("keydown", async (e) => {
 
   if (isCmdO) {
     e.preventDefault();
-    const result = await window.electronAPI.readMarkdownFile("/Users/Tadanori/Library/CloudStorage/Dropbox/logText/2025/202507.md");
+    //開いているファイルの名前をチェックする
+    const result = await window.electronAPI.readMarkdownFile(window.currentFilePath);
     
-    if (result.success) {
+    if (result) {
       console.log("読み込みは成功です")
-      showModalWithContent(result.content);
+      showModalWithContent(result);
     } else {
-      alert("ファイル読み込み失敗: " + result.error);
+      alert("ファイル読み込み失敗: ");
     }
     modalOverlayO.classList.remove("hidden");
     modalInputO.focus();
@@ -865,5 +881,22 @@ function setupClick(view) {
 }
 
 
+// 外部変更通知を受け取る
+window.electronAPI.onFileUpdated(({ filePath, newContent }) => {
+  if (!editorView) return;
+
+  const currentContent = editorView.state.doc.toString();
+  if (currentContent === newContent) return
+  
+  if(isDirty){
+    const confirmed = confirm(`ファイル ${filePath} が外部で変更されました。再読み込みしますか？`);
+    if (!confirmed)  return
+  }
+  editorView.dispatch({
+      changes: { from: 0, to: currentContent.length, insert: newContent }
+    });
+  setDirtyState(false)
+
+});
 
 console.log('Renderer script with CodeMirror loaded.');
