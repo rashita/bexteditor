@@ -643,16 +643,16 @@ const checklistPlugin = ViewPlugin.fromClass(class {
             Decoration.replace({
               widget: new CheckboxWidget(checked, node.from, node.to, view),
               inclusive: false
-            }).range(line.from, node.to)//node.fromから変更
+            }).range(node.from, node.to)//node.fromから変更
           );
 
           //親要素操作のテスト.以下を参照。
           //https://chatgpt.com/c/688fe965-95d4-8011-bd4f-b39fc9181e03 
-          widgets.push(
-            Decoration.line({
-              attributes: { style: "padding-left: 0.5em;"}
-            }).range(line.from)
-          );
+          // widgets.push(
+          //   Decoration.line({
+          //     attributes: { style: "padding-left: 0.5em;"}
+          //   }).range(line.from)
+          // );
 
 
         }
