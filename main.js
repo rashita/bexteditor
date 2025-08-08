@@ -336,6 +336,16 @@ const menuTemplate = [
       { type: 'separator' },
       { role: 'togglefullscreen' }
     ]
+  },
+  {
+    label:'Tool',
+    submenu: [
+      { label:'Timer',
+        click: () => {
+          console.log("click Timer menu")
+        }
+      }
+    ]
   }
 ];
 
@@ -729,4 +739,33 @@ function expandPath(p) {
     return path.join(os.homedir(), p.slice(2));
   }
   return p;
+}
+
+function createTimerWindow(parent = null) {
+  console.log("create timer window")
+  const win = new BrowserWindow({
+    width: 500,
+    height: 600,
+    parent:parent,
+    x: 0 ,  // 親の右下に少しずらす
+    y: 0 ,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    }
+  });
+
+  win.loadFile(path.join(__dirname, 'timer.html'));
+
+  win.on('close', (event) => {
+
+  });
+
+  win.on('closed', () => {
+    windows.delete(win);
+  });
+
+  return win;
+
 }

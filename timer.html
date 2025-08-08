@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>優美なタイマー</title>
+    <link rel="icon" href="image/icon.png" type="image/png">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            margin: 0;
+            background-color: #f8f8f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            text-align: center;
+        }
+
+        .input-wrapper { /* 追加 */
+            position: relative;
+            width: 300px; /* inputの幅に合わせる */
+            margin-bottom: 10px; /* 必要に応じて調整 */
+            text-align: center;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .background-image {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .task-input {
+            padding: 10px;
+            margin-bottom: 10px; /* サジェスト表示領域との間隔を調整 */
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 100%;
+            font-size: 16px;
+        }
+
+        .timer {
+            font-family: 'Shippori Mincho B1', serif;
+            font-size: 3em;
+            color: #e47911; /* 伝統的な色合い */
+            margin-bottom: 20px;
+            opacity: 1; /* 初期状態は不透明 */
+            transition: opacity 0.1s ease-in-out; /* 点滅アニメーション用 */
+        }
+
+        .timer.blink {
+            opacity: 0.5;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 0 10px;
+        }
+
+        .start-button {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .start-button:active {
+            background-color: #388E3C; /* 押した時の色を少し暗く */
+            transform: scale(0.95); /* 押した時に少し縮小 */
+        }
+
+
+        .stop-button {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .reset-button {
+            background-color: #008CBA;
+            color: white;
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+
+        .reset-button:active {
+            background-color: #006996;
+            transform: scale(0.95);
+        }
+
+        .hundred-poems {
+            margin-top: 20px;
+            font-style: italic;
+            color: #777;
+        }
+
+        .suggestions {
+            position: absolute;
+            top: calc(100% + 5px); /* input要素の下に少し間隔を開けて表示 */
+            left: 0;
+            width: 100%;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: none; /* 初期状態は非表示 */
+        }
+
+        .suggestions li {
+            padding: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .suggestions li:hover {
+            background-color: #f0f0f0;
+        }
+
+        .suggestions li.selected {
+            background-color: #e0e0e0;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Shippori+Mincho+B1&display=swap" rel="stylesheet">
+</head>
+<body>
+    <img src="image/yukiko-kanada-iqmmtdW89n0-unsplash.jpg" alt="背景画像" class="background-image">
+    <div class="container">
+        <h1>優美なタイマー</h1>
+        <div class="input-wrapper">
+            <input type="text" id="task" class="task-input" placeholder="実行するタスクを入力してください" autocomplete="on">
+            <ul id="suggestions" class="suggestions"></ul>
+        </div>
+        <div class="timer" id="display">00:00:00</div>
+        <div class="controls">
+            <button id="startStop" class="start-button">開始</button>
+            <button id="reset" class="reset-button">リセット</button>
+        </div>
+        <div id="resultArea" class="result" style="display: none;">
+            <h2>お疲れさまでした</h2>
+            <p>タスク: <span id="completedTask"></span></p>
+            <p>実行時間: <span id="elapsedTime"></span></p>
+            <div class="hundred-poems" id="poem"></div>
+        </div>
+    </div>
+
+    <script>
+        let timerInterval;
+        let startTime;
+        let elapsedTime = 0;
+        const defaultPageTitle = "優美なタイマー"
+        const display = document.getElementById('display');
+        const startStopButton = document.getElementById('startStop');
+        const resetButton = document.getElementById('reset');
+        const taskInput = document.getElementById('task');
+        const suggestionsList = document.getElementById('suggestions');
+        const resultArea = document.getElementById('resultArea');
+        const completedTaskElement = document.getElementById('completedTask');
+        const elapsedTimeElement = document.getElementById('elapsedTime');
+        const poemElement = document.getElementById('poem');
+        const backgroundImage = document.querySelector('.background-image');
+        backgroundImage.src = "image/yukiko-kanada-iqmmtdW89n0-unsplash.jpg"; // 屏風風の背景画像のURLをここに追加
+
+		const hyakuninIsshu = [
+"天智天皇 001 秋の田のかりほの盧のとまをあらみ　我ころも手は露にぬれつゝ",
+"持統天皇 002 春過て夏来にけらし白妙の　衣ほすてふあまの香来山",
+"柿本人丸 003 あし引の山鳥のおのしたり尾の　なかゝゝし夜を独かもねん",
+"山辺赤人 004 田子のうらにうち出てみれはしろ妙の　不二の高根にゆきは降つゝ",
+"猿丸大夫 005 おく山に紅葉ふみわけ鳴しかの　聲きくときそ秋はかなしき",
+"中納言家持 006 鵲の渡せるはしにをく霜の　しろきをみれはよそ更にける",
+"安倍仲麿 007 天の原ふりさけみれは春日なる　三笠のやまに出し月かも",
+"喜撰法師 008 我盧はみやこのたつみしかそ住　よを宇治山と人はいふなり",
+"小野小町 009 花の色はうつりにけりないたつらに　わか身よにふるなかめせしまに",
+"蝉丸 010 是や此行もかへるも別ては　しるもしらぬも相坂のせき",
+"参議篁 011 和田の原八十嶋かけてこき出ぬと　人にはつけよあまの釣舟",
+"僧正遍昭 012 天つ風雲のかよひち吹とちよ　をとめのすかたしはしとゝめん",
+"陽成院 013 つくはねのみねよりおつるみなの川　恋そつもりてふちとなりぬる",
+"河原左大臣 014 みちのくの忍ふ文字すり誰ゆへに　乱れ初にしわれならなくに",
+"光孝天皇 015 君かためはるの野に出てわかなつむ　わか衣手に雪はふりつゝ",
+"中納言行平 016 立わかれいなはの山の嶺に生る　まつとしきかはいまかへりこん",
+"在原業平朝臣 017 千早振神代もきかす立田川　からくれなゐに水くゝるとは",
+"藤原敏行朝臣 018 住の江のきしによる波よるさへや　夢のかよひち人めよくらん",
+"伊勢 019 なには潟みちかきあしのふしのまも　あはてこのよを過してよとや",
+"元良親王 020 侘ぬれは今はたおなし難波なる　身をつくしてもあはんとそ思ふ",
+"素性法師 021 今こんといひしはかりに長月の　有明の月をまちいてつるかな",
+"文屋康秀 022 吹からに秋の草木のしほるれは　むへ山風をあらしといふらん",
+"大江千里 023 月みれは千々にものこそかなしけれ　我身ひとつの秋にはあらねと",
+"菅家 024 この度はぬさも取あへす手向山　もみちのにしき神のまにゝゝ",
+"三条右大臣 025 なにしおははあふ坂山のさねかつら　人にしられて来るよしも哉",
+"貞信公 026 をくら山嶺のもみち葉心あらは　今一度のみゆきまたなん",
+"中納言兼輔 027 みかの原わきてなかるゝ和泉川　いつみきとてか恋しかるらん",
+"源宗于朝臣 028 山里は冬そさひしさ増りける　人めも草もかれぬとおもへは",
+"凡河内躬恒 029 心あてに折はやおらむ初しもの　をきまとはせるしら菊の花",
+"壬生忠岑 030 有明のつれなく見えし別れより　暁計うきものはなし",
+"坂上是則 031 朝ほらけ在明の月とみるまてに　よし野ゝさとにふれるしら雪",
+"春道列樹 032 山川に風の懸たるしからみは　なかれもあへぬ紅葉なりけり",
+"紀友則 033 久方の光のとけき春の日に　しつ心なくはなの散らん",
+"藤原興風 034 誰をかも知人にせん高砂の　松も昔の友ならなくに",
+"紀貫之 035 人はいさ心もしらす古郷は　花そむかしの香ににほひける",
+"清原深養父 036 夏のよはまたよひなから明ぬるを　雲のいつこに月やとるらん",
+"文屋朝康 037 しら露に風のふきしく秋のゝは　つらぬきとめぬたまそ散ける",
+"右近 038 わすらるゝ身をは思はす誓ひてし　人のいのちのおしくも有かな",
+"参議等 039 浅ちふのをのゝしの原忍ふれと　あまりてなとか人のこひしき",
+"平兼盛 040 忍ふれと色に出にけり我こひは　ものやおもふとひとのとふまて",
+"壬生忠見 041 恋すてふ我名はまたき立にけり　人しれすこそおもひそめしか",
+"清原元輔 042 契きなかたみにそてをしほりつゝ　すゑのまつ山波こさしとは",
+"権中納言敦忠 043 あひみての後の心にくらふれは　むかしはものをおもはさりけり",
+"中納言朝忠 044 逢事のたえてしなくは中ゝゝに　人をも身をもうらみさらまし",
+"謙徳公 045 哀ともいふへき人はおもほえて　身の徒になりぬへき哉",
+"曾禰好忠 046 ゆらのとを渡る舟人かちを絶　行ゑもしらぬこひのみち哉",
+"恵慶法師 047 八重葎しけれる宿のさひしきに　人社見えね秋は来にけり",
+"源重之 048 風を痛み岩うつ波のをのれのみ　碎て物をおもふころかな",
+"大中臣能宣朝臣 049 みかき守ゑしのたく火の夜はもえて　ひるは消つゝものをこそおもへ",
+"藤原義孝 050 君かためおしからさりしいのちさへ　永くもかなとおもひけるかな",
+"藤原実方朝臣 051 かくとたにえやはいふきのさしも草　さしもしらしな燃るおもひを",
+"藤原道信朝臣 052 明ぬれはくるゝものとは知なから　猶うらめしき朝朗かな",
+"右大将道綱母 053 なけきつゝ独ぬるよの明るまは　いかに久しきものとかはしる",
+"儀同三司母 054 わすれしの行すゑまては難けれは　けふをかきりのいのちとも哉",
+"大納言公任 055 瀧の音はたえて久しく成ぬれと　名こそなかれて尚聞えけれ",
+"和泉式部 056 あらさらん此よの外のおもひ出に　いま一度のあふ事も哉",
+"紫式部 057 めくりあひてみしやそれとも分ぬまに　雲かくれにしよはの月哉",
+"大弐三位 058 有馬山猪名のさゝ原風ふけは　いてそよ人をわすれやはする",
+"赤染衛門 059 やすらはてねなましものをさよ更て　片ふくまての月を見しかな",
+"小式部内侍 060 大江山生野ゝみちの遠けれは　またふみも見すあまのはしたて",
+"伊勢大輔 061 いにしへの奈良のみやこの八重桜　けふこゝのへに匂ひぬるかな",
+"清少納言 062 よをこめて鳥のそらねははかるとも　世にあふさかの関はゆるさし",
+"左京大夫道雅 063 今はたゝおもひたえなんとはかりを　人つてならていふよしも哉",
+"権中納言定頼 064 朝朗うちの川霧たえゝゝに　顕はれ渡る瀬ゝのあしろ木",
+"相模 065 うらみ侘ほさぬ袖たにある物を　恋に朽なむ名こそおしけれ",
+"大僧正行尊 066 もろ共に哀とおもへ山さくら　はなより外にしる人もなし",
+"周防内侍 067 春の夜の夢はかりなる手枕に　甲斐なくたゝん名こそおしけれ",
+"三条院 068 心にもあらてうきよになからへは　こひしかるへき夜半の月哉",
+"能因法師 069 あらしふく三室の山のもみちはゝ　たつ田の川のにしき成けり",
+"良暹法師 070 さひしさに宿をたち出てなかむれは　いつくもおなし秋の夕暮",
+"大納言経信 071 夕されは門田のいなは音つれて　芦のまろやにあき風そふく",
+"祐子内親王家紀伊 072 音にきくたかしのはまの化波は　かけしやそてのぬれもこそすれ",
+"権中納言匡房 073 高砂のおのへのさくら咲にけり　とやまの霞みたゝすもあらなん",
+"源俊頼朝臣 074 うかりける人を初瀬の山おろし　はけしかれとはいのらぬものを",
+"藤原基俊 075 契りをきしさせもかつゆをいのちにて　哀ことしの秋もいぬめり",
+"法性寺入道前関白太政大臣 076 和田の原こき出てみれは久方の　雲井にまかふおきつしら波",
+"崇徳院 077 瀬をはやみ岩にせかるゝたき川の　われてもすゑにあはむとそおもふ",
+"源兼昌 078 あはち嶋かよふ千鳥の鳴こゑに　幾夜ねさめぬすまのせきもり",
+"左京大夫顕輔 079 秋風に棚引雲のたえまより　もれいつる月のかけのさやけさ",
+"待賢門院堀河 080 長からん心もしらすくろ髮の　みたれて今朝はものをこそ思へ",
+"後徳大寺左大臣 081 ほとゝきす鳴つる方を眺むれは　唯有明の月そのこれる",
+"道因法師 082 思ひわひさてもいのちは有ものを　うきに堪ぬはなみた成けり",
+"皇太后宮大夫俊成 083 世中よ道こそなけれおもひ入　山のおくにも鹿そ鳴なる",
+"藤原清輔朝臣 084 なからへはまたこの比や忍はれん　うしと見しよそいまはこひしき",
+"俊恵法師 085 よもすから物思ふころは明やらて　閨の隙さへつれなかりけり",
+"西行法師 086 歎けとて月やはものを思はする　かこち顔なるわかなみたかな",
+"寂蓮法師 087 村雨の露もまたひぬ槇のはに　霧たちのほるあきのゆふ暮",
+"皇嘉門院別当 088 難波江のあしのかりねの一夜ゆへ　身をつくしてやこひ渡るへき",
+"式子内親王 089 玉のをよ絶なはたえねなからへは　しのふる事のよはりもそする",
+"殷富門院大輔 090 見せはやなをしまのあまの袖たにも　ぬれにそぬれし色はかはらす",
+"後京極摂政前太政大臣 091 きりゝゝす鳴やしもよのさむしろに　ころもかたしきひとりかもねん",
+"二条院讃岐 092 わか袖はしほひに見えぬおきの石の　人こそしらねかはくまもなし",
+"鎌倉右大臣 093 世中は常にもかもな渚こく　海人のをふねの綱手かなしも",
+"参議雅経 094 みよし野ゝ山の秋風さよ更て　故郷さむくころもうつ也",
+"前大僧正慈円 095 おほけなくうきよの民におほふ哉　我たつ杣にすみそめの袖",
+"入道前太政大臣 096 花さそふあらしの庭の雪ならて　ふり行ものはわか身成けり",
+"権中納言定家 097 来ぬ人をまつほのうらの夕なきに　やくや藻しほの身もこかれつゝ",
+"従二位家隆 098 風そよくならの小川の夕暮は　御秡そなつのしるし成ける",
+"後鳥羽院 099 人もおしひともうらめしあちきなく　よをおもふゆへに物思ふ身は",
+"順徳院 100 百敷やふるき軒端の忍ふにも　なを餘りあるむかし成けり"
+
+        ];
+
+
+        const LOCAL_STORAGE_KEY = 'pomodoro_tasks';
+        let taskHistory = loadTasks();
+        let suggestionIndex = -1; // 選択中のサジェストアイテムのインデックス
+
+        function loadTasks() {
+            const storedTasks = localStorage.getItem(LOCAL_STORAGE_KEY);
+            return storedTasks ? JSON.parse(storedTasks) : [];
+        }
+
+        function saveTask(task) {
+            if (task && !taskHistory.includes(task)) {
+                taskHistory.unshift(task);
+                if (taskHistory.length > 20) { // 保存する履歴の最大件数
+                    taskHistory.pop();
+                }
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(taskHistory));
+            }
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const seconds = totalSeconds % 60;
+            const minutes = Math.floor(totalSeconds / 60) % 60;
+            const hours = Math.floor(totalSeconds / 3600);
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function updateTimer() {
+            const now = new Date().getTime();
+            elapsedTime = now - startTime;
+            display.textContent = formatTime(elapsedTime);
+            document.title = taskInput.value + " " +(formatTime(elapsedTime)); //タスク名をページタイトルに変更する
+        }
+
+        async function saveLog(task, elapsedTime) {
+
+            const currentURL = window.location.href;
+            //rashita.netで開いている場合を判断
+            const isRunningOnWebServer = currentURL.startsWith('https://rashita.net/')
+
+            if (!(isRunningOnWebServer)){
+                try {
+                    const response = await fetch('http://127.0.0.1:3000/log', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ task: task, elapsedTime: formatTime(elapsedTime) })
+                    });
+                    const result = await response.text();
+                    console.log('Log save result:', result); // ログ保存の結果をコンソールに表示
+                } catch (error) {
+                    console.error('Error sending log data:', error);
+                }
+            }else{
+                console.log('Webページとして実行中のため、ログ保存はスキップします。URL:', currentURL);
+            }
+        }
+
+        function showSuggestions() {
+            suggestionsList.innerHTML = '';
+            const recentTasks = taskHistory.slice(0, 17);
+            if (recentTasks.length > 0) {
+                recentTasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.textContent = task;
+                    li.addEventListener('click', () => {
+                        taskInput.value = task;
+                        hideSuggestions();
+                    });
+                    suggestionsList.appendChild(li);
+                });
+                suggestionsList.style.display = 'block';
+                suggestionIndex = -1; // リスト表示時に選択をリセット
+            } else {
+                hideSuggestions();
+            }
+        }
+
+        function hideSuggestions() {
+            suggestionsList.style.display = 'none';
+        }
+
+        function selectSuggestion(direction) {
+            const items = suggestionsList.querySelectorAll('li');
+            if (items.length > 0) {
+                if (direction === 'down') {
+                    suggestionIndex = Math.min(suggestionIndex + 1, items.length - 1);
+                } else if (direction === 'up') {
+                    suggestionIndex = Math.max(suggestionIndex - 1, -1);
+                }
+                console.log(suggestionIndex)
+
+                items.forEach((item, index) => {
+                    item.classList.remove('selected');
+                    if (index === suggestionIndex) {
+                        item.classList.add('selected');
+                    }
+                });
+            }
+        }
+
+        function applySelectedSuggestion() {
+            const selectedItem = suggestionsList.querySelector('li.selected');
+            if (selectedItem) {
+                taskInput.value = selectedItem.textContent;
+                hideSuggestions();
+            }
+        }
+
+
+
+        function startTimer() {
+            display.textContent = '00:00:00';
+            startStopButton.classList.add('active'); // ボタンをアクティブ状態にするスタイルを適用
+            display.classList.add('blink'); // タイマー表示を点滅させるクラスを追加
+            setTimeout(() => {
+                startStopButton.classList.remove('active'); // 少し遅れてアクティブ状態を解除
+                display.classList.remove('blink'); // 点滅クラスを削除
+                startTime = new Date().getTime();
+                timerInterval = setInterval(updateTimer, 1000);
+                startStopButton.textContent = '終了';
+                startStopButton.classList.remove('start-button');
+                startStopButton.classList.add('stop-button');
+                resultArea.style.display = 'none'; // 再度開始時に結果表示を消す
+                if (taskInput.value != "") document.title = taskInput.value //タスク名をページタイトルに変更する
+            }, 200); // 0.2秒後にタイマーを開始
+            
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerInterval = undefined; // タイマー停止時に timerInterval を undefined にする
+            startStopButton.textContent = '開始';
+            startStopButton.classList.remove('stop-button');
+            startStopButton.classList.add('start-button');
+            showResult();
+
+            const taskName = taskInput.value.trim();
+            if (taskName && elapsedTime > 0) {
+                saveTask(taskName); // タスクを保存
+                saveLog(taskName, elapsedTime); // ログを保存
+            }
+
+            document.title = defaultPageTitle;
+            taskInput.value = "";
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timerInterval = undefined; // リセット時にも timerInterval を undefined にする
+            elapsedTime = 0;
+            display.textContent = '00:00:00';
+            startStopButton.textContent = '開始';
+            startStopButton.classList.remove('stop-button');
+            startStopButton.classList.add('start-button');
+            resultArea.style.display = 'none';
+			taskInput.value = ""// 再度開始時に入力されたタスクを消す
+        }
+
+        function showResult() {
+            const taskName = taskInput.value.trim();
+            completedTaskElement.textContent = taskName || '未入力';
+            elapsedTimeElement.textContent = formatTime(elapsedTime);
+            const randomIndex = Math.floor(Math.random() * hyakuninIsshu.length);
+            poemElement.textContent = hyakuninIsshu[randomIndex];
+            resultArea.style.display = 'block';
+        }
+
+        taskInput.addEventListener('focus', showSuggestions);
+        taskInput.addEventListener('blur', () => setTimeout(hideSuggestions, 100)); // 少し遅らせて非表示にする（クリック処理との競合を避けるため）
+        taskInput.addEventListener('keydown', (event) => {
+            if (suggestionsList.style.display === 'block') {
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault(); // カーソル移動を防ぐ
+                    selectSuggestion('down');
+                } else if (event.key === 'ArrowUp') {
+                    event.preventDefault(); // カーソル移動を防ぐ
+                    selectSuggestion('up');
+                } else if (event.key === 'Enter') {
+                    event.preventDefault(); // フォーム送信を防ぐ
+
+                    // 選択中のサジェストがある場合
+                    if (suggestionIndex !== -1) {
+                        applySelectedSuggestion();
+                    } else if (event.shiftKey) { // Shift + Enter でタイマー開始
+                        startTimer();
+                        taskInput.blur(); // タイマー開始後、入力フィールドからフォーカスを外す
+                    }
+                }
+            }else if (event.key === 'Enter' && event.shiftKey) { // サジェスト非表示時もShift + Enterで開始
+                startTimer();
+                taskInput.blur(); // タイマー開始後、入力フィールドからフォーカスを外す
+            }
+        });
+
+
+        startStopButton.addEventListener('click', () => {
+            if (!timerInterval) { // timerInterval が falsy (undefined または null) の場合のみ開始
+                startTimer();
+            } else {
+                stopTimer();
+            }
+        });
+
+        resetButton.addEventListener('click', resetTimer);
+    </script>
+</body>
+</html>
