@@ -6,8 +6,6 @@ const log = require('electron-log')
 const { program } = require ("commander")
 const { addToHistory,loadHistory } = require('./history.js');
 const chokidar = require('chokidar');
-const { session } = require('electron')
-
 console.log = (...args) => log.info(...args)
 console.error = (...args) => log.error(...args)
 console.warn = (...args) => log.warn(...args)
@@ -50,6 +48,7 @@ function createWindow(parent = null) {
     parent:parent,
     x: parentX ,  // 親の右下に少しずらす
     y: parentY ,
+    currentFont : 'sans-serif',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -241,119 +240,8 @@ ipcMain.on("open-link", async (event, linkText,currentFilePath) => {
 
 app.setName('bextEditor');
 
-const menuTemplate = [
-  // {appMenu}
-  ...(process.platform === 'darwin' ? [{
-    label: app.getName(),
-    submenu: [
-      { role: 'about' },
-      { type: 'separator' },
-      { role: 'services' },
-      { type: 'separator' },
-      { role: 'hide' },
-      { role: 'hideOthers' },
-      { role: 'unhide' },
-      { type: 'separator' },
-      { role: 'quit' }
-    ]
-  }] : []),
-  {
-    label: 'File',
-    submenu: [
-      {
-        label: 'New',
-        accelerator: 'CmdOrCtrl+N',
-        click: () => {
-          createWindow();
-        }
-      },
-      {
-        label: 'Open File',
-        accelerator: 'CmdOrCtrl+O',
-        click: openFileInNewWindow
-      },
-      {
-        label: 'Open Recent',
-        role: 'recentDocuments',
-        submenu: [
-          {
-            label: 'Clear Recent',
-            role: 'clearRecentDocuments'
-          }
-        ]
-      },
-      {
-        label: 'Save',
-        accelerator: 'CmdOrCtrl+S',
-        click: () => {
-          const focusedWindow = BrowserWindow.getFocusedWindow();
-          if (focusedWindow) {
-            focusedWindow.webContents.send('trigger-save-file', { id: focusedWindow.id });
-          }
-        }
-      },
-      { type: 'separator' },
-      process.platform === 'darwin' ? { role: 'close' } : { role: 'quit' }
-    ]
-  },
-  {
-    label: 'Edit',
-    submenu: [
-      { role: 'undo' },
-      { role: 'redo' },
-      { type: 'separator' },
-      { role: 'cut' },
-      { role: 'copy' },
-      { role: 'paste' },
-      ...(process.platform === 'darwin' ? [
-        { role: 'pasteAndMatchStyle' },
-        { role: 'delete' },
-        { role: 'selectAll' },
-        { type: 'separator' },
-        {
-          label: 'Speech',
-          submenu: [
-            { role: 'startSpeaking' },
-            { role: 'stopSpeaking' }
-          ]
-        }
-      ] : [
-        { role: 'delete' },
-        { type: 'separator' },
-        { role: 'selectAll' }
-      ])
-    ]
-  },
-  {
-    label: 'View',
-    submenu: [
-      { role: 'reload' },
-      { role: 'forceReload' },
-      { role: 'toggleDevTools' },
-      { type: 'separator' },
-      { role: 'resetZoom' },
-      { role: 'zoomIn' },
-      { role: 'zoomOut' },
-      { type: 'separator' },
-      { role: 'togglefullscreen' }
-    ]
-  },
-  {
-    label:'Tool',
-    submenu: [
-      { label:'Timer',
-        click: () => {
-          console.log("click Timer menu")
-          createTimerWindow()
-        }
-      }
-    ]
-  }
-];
-
 //引き数を使った起動への対応
 let openFileQueue = []
-
 
 function openFileFromPath(filePath,parent=null) {
   console.log("ファイルから" + filePath + "ウィンドウを作成します")
@@ -422,8 +310,175 @@ app.on('ready', () => {
   console.log('ready event');
 });
 
+
+
+function getFocusedWindowFont() {
+  const focused = BrowserWindow.getFocusedWindow();
+  return focused?.currentFont || null;
+}
+
+function buildMenu() {
+  const focusedFont = getFocusedWindowFont();
+
+  const menuTemplate = [
+    // {appMenu}
+    ...(process.platform === 'darwin' ? [{
+      label: app.getName(),
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => {
+            createWindow();
+          }
+        },
+        {
+          label: 'Open File',
+          accelerator: 'CmdOrCtrl+O',
+          click: openFileInNewWindow
+        },
+        {
+          label: 'Open Recent',
+          role: 'recentDocuments',
+          submenu: [
+            {
+              label: 'Clear Recent',
+              role: 'clearRecentDocuments'
+            }
+          ]
+        },
+        {
+          label: 'Save',
+          accelerator: 'CmdOrCtrl+S',
+          click: () => {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (focusedWindow) {
+              focusedWindow.webContents.send('trigger-save-file', { id: focusedWindow.id });
+            }
+          }
+        },
+        { type: 'separator' },
+        process.platform === 'darwin' ? { role: 'close' } : { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        ...(process.platform === 'darwin' ? [
+          { role: 'pasteAndMatchStyle' },
+          { role: 'delete' },
+          { role: 'selectAll' },
+          { type: 'separator' },
+          {
+            label: 'Speech',
+            submenu: [
+              { role: 'startSpeaking' },
+              { role: 'stopSpeaking' }
+            ]
+          }
+        ] : [
+          { role: 'delete' },
+          { type: 'separator' },
+          { role: 'selectAll' }
+        ])
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label:"Mode",
+          submenu:[
+            {label:'Jounal',
+              type: 'radio',
+              checked:  (focusedFont ?? 'sans-serif') === 'sans-serif',
+              click:()=> {
+                const focused = BrowserWindow.getFocusedWindow();
+                if(!focused)return
+                focused.currentFont = 'sans-serif';
+                focused.webContents.send('change-font', {
+                size: '18px',
+                family: '"Roboto",Helvetica,Arial,"Hiragino Sans",sans-serif'
+                });
+              }
+            },
+            {label:"Writing",
+              type: 'radio',
+              checked: focusedFont === 'serif',
+              click:()=> {
+                const focused = BrowserWindow.getFocusedWindow();
+                if(!focused)return
+                focused.currentFont = 'serif';
+                focused.webContents.send('change-font', {
+                  size: '18px',
+                  family: '"Noto Serif JP", "Hiragino Mincho ProN", "Hiragino Mincho", serif'
+                });
+              }
+            }
+          ]
+        },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label:'Tool',
+      submenu: [
+        { label:'Timer',
+          click: () => {
+            console.log("click Timer menu")
+            createTimerWindow()
+          }
+        }
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(menuTemplate);
+  Menu.setApplicationMenu(menu);
+}
+
+
+
+
+
+
+
+
+
+
+
 app.whenReady().then(() => {
   console.log("when ready start");
+  buildMenu()
+
   ipcMain.handle('dialog:saveFile', handleFileSave);
 
   ipcMain.handle('open-specific-file', async (event, filePath) => {
@@ -449,10 +504,6 @@ app.whenReady().then(() => {
   }
 
 
-  const menu = Menu.buildFromTemplate(menuTemplate);
-  Menu.setApplicationMenu(menu);
-
- 
   app.on('activate', (event, hasVisibleWindows) => {
     console.log("active" + event)
     if (windows.size === 0) {
@@ -744,7 +795,6 @@ function expandPath(p) {
 }
 
 //タイマー用ウィンドウの作成
-
 function createTimerWindow(parent = null) {
   console.log("create timer window")
   const win = new BrowserWindow({
@@ -764,6 +814,17 @@ function createTimerWindow(parent = null) {
   //win.loadFile(path.join(__dirname, 'timer.html'));
   win.loadFile(path.join(__dirname, 'timer.html'), { query: { v: Date.now() } });
 
+   // 絶対パスをCSS用に渡したい場合
+  const imgPath = path.join(__dirname, 'images', 'background.png');
+  const isDev = !app.isPackaged;
+  const historyFilePath = isDev
+    ? path.join(__dirname, 'build/bgimage001.jpg')
+    : path.join(app.getPath('userData'), 'bgimage001.jpg');
+  
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.send('set-background', historyFilePath);
+  });
+
   win.on('close', (event) => {
 
   });
@@ -775,3 +836,4 @@ function createTimerWindow(parent = null) {
   return win;
 
 }
+

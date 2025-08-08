@@ -1,7 +1,7 @@
 import { lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine, keymap} from '@codemirror/view';
 import { EditorView } from '@codemirror/view';
 import { ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
+import { EditorState ,StateEffect,Compartment} from "@codemirror/state";
 import { RangeSetBuilder  } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
@@ -16,6 +16,8 @@ import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
 
 const isAUtoSave = false //自動保存機能のトグル
+
+const fontCompartment = new Compartment();//
 
 //文字数カウント用のプラグイン
 const charCountPlugin = ViewPlugin.fromClass(class {
@@ -458,7 +460,11 @@ function initializeEditor() {
       checklistPlugin,
       imagePlugin,
       internalLinkPlugin,
-      charCountPlugin
+      charCountPlugin,
+      fontCompartment.of(EditorView.theme({
+        "&": { fontSize: "16px", fontFamily: "serif" },
+        ".cm-content":{fontFamily: '"Roboto",Helvetica,Arial,"Hiragino Sans",sans-serif'}
+      }))
     ]
   });
 
@@ -898,5 +904,22 @@ window.electronAPI.onFileUpdated(({ filePath, newContent }) => {
   setDirtyState(false)
 
 });
+
+// フォントの変更
+function changeFont(size,family) {
+  console.log(family + "に変更します")
+  editorView.dispatch({
+    effects: fontCompartment.reconfigure(EditorView.theme({
+      ".cm-content": { fontFamily: family }
+    }))
+  });
+}
+
+// main.js からの通知を受け取る
+window.electronAPI.onChangeFont(({ size, family }) => {
+   console.log("call writing mode")
+  changeFont(size, family);
+});
+
 
 console.log('Renderer script with CodeMirror loaded.');

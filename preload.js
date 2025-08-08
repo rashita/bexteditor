@@ -14,5 +14,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   levelFile: (filePath,isUp) => ipcRenderer.send('level-file', filePath,isUp),
   readMarkdownFile: (filename) => ipcRenderer.invoke("read-markdown-file", filename),
   openFile: (filePath) => ipcRenderer.send('request-open-file', filePath),
-  onFileUpdated: (callback) => ipcRenderer.on('file-updated', (event, data) => callback(data))
+  onFileUpdated: (callback) => ipcRenderer.on('file-updated', (event, data) => callback(data)),
+  onChangeFont: (callback) => ipcRenderer.on('change-font', (event, font) => callback(font))
+});
+
+ipcRenderer.on('set-background', (_, imgUrl) => {
+  const imgElement = document.getElementById('bgimg');
+  if (imgElement) {
+    imgElement.src = `file://${imgUrl}`;
+  }
 });
