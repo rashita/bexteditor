@@ -6,6 +6,7 @@ const log = require('electron-log')
 const { program } = require ("commander")
 const { addToHistory,loadHistory } = require('./history.js');
 const chokidar = require('chokidar');
+const { session } = require('electron')
 
 console.log = (...args) => log.info(...args)
 console.error = (...args) => log.error(...args)
@@ -343,6 +344,7 @@ const menuTemplate = [
       { label:'Timer',
         click: () => {
           console.log("click Timer menu")
+          createTimerWindow()
         }
       }
     ]
@@ -741,6 +743,8 @@ function expandPath(p) {
   return p;
 }
 
+//タイマー用ウィンドウの作成
+
 function createTimerWindow(parent = null) {
   console.log("create timer window")
   const win = new BrowserWindow({
@@ -756,7 +760,9 @@ function createTimerWindow(parent = null) {
     }
   });
 
-  win.loadFile(path.join(__dirname, 'timer.html'));
+
+  //win.loadFile(path.join(__dirname, 'timer.html'));
+  win.loadFile(path.join(__dirname, 'timer.html'), { query: { v: Date.now() } });
 
   win.on('close', (event) => {
 

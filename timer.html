@@ -154,7 +154,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Shippori+Mincho+B1&display=swap" rel="stylesheet">
 </head>
 <body>
-    <img src="image/yukiko-kanada-iqmmtdW89n0-unsplash.jpg" alt="背景画像" class="background-image">
+    <img src="build/bgimage001.jpg" alt="背景画像" class="background-image">
     <div class="container">
         <h1>優美なタイマー</h1>
         <div class="input-wrapper">
@@ -333,8 +333,9 @@
         async function saveLog(task, elapsedTime) {
 
             const currentURL = window.location.href;
-            //rashita.netで開いている場合を判断
-            const isRunningOnWebServer = currentURL.startsWith('https://rashita.net/')
+            //どこで実行されているかを判断
+            const isRunningOnWebServer = currentURL.startsWith('file:')
+            //データの保存先を考えること
 
             if (!(isRunningOnWebServer)){
                 try {

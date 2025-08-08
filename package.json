@@ -54,6 +54,7 @@
       "preload.js",
       "history.js",
       "index.html",
+      "timer.html",
       "dist/bundle.js",
       "build/"
     ]
