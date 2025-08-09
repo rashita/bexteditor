@@ -73,6 +73,7 @@
     "chokidar": "^4.0.3",
     "codemirror": "^6.0.2",
     "commander": "^14.0.0",
+    "dayjs": "^1.11.13",
     "electron-log": "^5.4.1"
   }
 }

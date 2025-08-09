@@ -14,6 +14,9 @@ import { syntaxTree } from "@codemirror/language";
 import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemirror/language"; //下位項目の開閉
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
+import { editingKeymap } from './lib/keybindings.js';
+
+import dayjs from 'dayjs';//日付の操作用
 
 const isAUtoSave = false //自動保存機能のトグル
 
@@ -232,21 +235,6 @@ const myHighlightStyle = HighlightStyle.define([
 ]);
 
 
-function smartToggleFold(view) {
-  // unfoldを試行（展開優先）
-  if (unfoldCode(view)) {
-    return true
-  }
-  
-  // foldを試行
-  if (foldCode(view)) {
-    return true
-  }
-  
-  // どちらも失敗した場合は何もしない
-  return false
-}
-
 //foldのトグル関数
 function toggleFoldCode(view) {
   const { state } = view;
@@ -276,26 +264,7 @@ function toggleFoldCode(view) {
 
 // カスタムのキーバインディング
 const customKeymap = keymap.of([
-  {
-    key: "Mod-Alt-ArrowUp", // Mod = Mac: Command, Windows: Ctrl
-    preventDefault: true,
-    run: moveLineUp
-  },
-  {
-    key: "Mod-Alt-ArrowDown",
-    preventDefault: true,
-    run: moveLineDown
-  },
-  {
-    key: "Mod-Alt-ArrowLeft",  
-    preventDefault: true,
-    run: foldCode
-  },
-  {
-    key: "Mod-Alt-ArrowRight",
-    preventDefault: true,
-    run: smartToggleFold
-  },
+  ...editingKeymap,
   {
     key: "Mod-Ctrl-ArrowUp",
     preventDefault: true,
@@ -362,6 +331,15 @@ const customKeymap = keymap.of([
         return true;  // キーイベントを処理済みとして伝える
       }
       return false;  // そうでなければ通常のEnter動作へ
+    }
+  },
+  {
+    key: "Ctrl-t",
+    preventDefault: true,
+    run:  (view) => {
+      console.log("Ctrl-t")
+      insertText(view)
+      return true;
     }
   }
 ]);
@@ -921,5 +899,80 @@ window.electronAPI.onChangeFont(({ size, family }) => {
   changeFont(size, family);
 });
 
+//今日の日付を返す ex. 2025-08-09
+function getTodayDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0"); // 月は0始まり
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
+//今日の日付を挿入する
+function insertData(view){
+  const selection = view.state.selection.main;
+  const text = getTodayDateString()
+
+  editorView.dispatch({
+    changes: selection.empty
+      // 選択なし → カーソル位置に挿入
+      ? { from: selection.from, insert: text }
+      // 選択あり → 選択範囲を置き換え
+      : { from: selection.from, to: selection.to, insert: text },
+    selection: {
+      // 挿入後にカーソルを挿入テキストの後ろに移動
+      anchor: selection.from + text.length
+    },
+    scrollIntoView: true
+  });
+
+}
+
+async function insertText(view,text=""){
+  const selection = view.state.selection.main;
+  const selectedText = view.state.sliceDoc(selection.from, selection.to);
+  const date = dayjs().format('ddd, DD MMM YYYY HH:mm:ss');
+  const frontMatterSource = await insertTemplateByKey(view,"r-style_template")
+  // 置き換えたい変数
+  const vars = {
+    title: selectedText,
+    date: date,
+  };
+  const frontMatter = await renderTemplate(frontMatterSource, vars);
+
+
+
+  editorView.dispatch({
+    changes: selection.empty
+      // 選択なし → カーソル位置に挿入
+      ? { from: selection.from, insert: frontMatter }
+      // 選択あり → 選択範囲を置き換え
+      : { from: selection.from, to: selection.to, insert: frontMatter },
+    selection: {
+      // 挿入後にカーソルを挿入テキストの後ろに移動
+      anchor: selection.from + text.length
+    },
+    scrollIntoView: true
+  });
+}
 console.log('Renderer script with CodeMirror loaded.');
+
+async function insertTemplateByKey(view, key) {
+  const result = await window.electronAPI.loadMdFile(key);
+  if (result.success) {
+    const text = result.content;
+    console.log(text)
+    return text
+    //insertText(view, text); // 以前定義したinsertText関数を呼ぶ
+  } else {
+    console.error('テンプレート読み込み失敗:', result.error);
+    // 必要に応じてユーザーに通知
+  }
+}
+
+//テンプレート展開の補助
+function renderTemplate(templateText, vars) {
+  return templateText.replace(/\$\{(\w+)\}/g, (match, p1) => {
+    return vars[p1] !== undefined ? vars[p1] : match;
+  });
+}

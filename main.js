@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, nativeImage } = require('electron');
 const fs = require('fs');
+const pfs = require('fs').promises;
 const os = require('os');
 const path = require('path');
 const log = require('electron-log')
@@ -23,6 +24,69 @@ function parseArguments(args) {
 
 // アプリ開始ログ
 log.info('App is starting...')
+
+//テンプレート処理
+const isDev = !app.isPackaged;
+const tempBaseDir = isDev ? __dirname : app.getPath('userData');
+const templateJsonPath = path.join(tempBaseDir, 'template.json');
+
+const templateMenuItem = {
+  label: 'Set Template…',
+  click: async () => {
+    // ファイル選択ダイアログを表示
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: 'Markdown Files', extensions: ['md', 'markdown'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return; // キャンセルされたら何もしない
+    }
+
+    const selectedPath = result.filePaths[0];
+    const fileName = path.basename(selectedPath);
+    const parsed = path.parse(fileName);
+
+    let templates = [];
+    try {
+      const data = await pfs.readFile(templateJsonPath, 'utf-8');
+      templates = JSON.parse(data);
+      if (!Array.isArray(templates)){
+        console.log('中身がありません');
+        templates = [];
+
+      } 
+    } catch(err) {
+      // ファイルがなければ空配列からスタート
+      console.error('template.json 読み込み失敗:', err);
+      console.log(templateJsonPath);
+      console.log('ファイルがありません');
+      templates = [];
+    }
+
+    // 重複チェック（templatePathで判定）
+    const exists = templates.some(t => t.templatePath === selectedPath);
+    if (!exists) {
+      templates.push({ name: parsed.name, templatePath: selectedPath });
+      fs.writeFile(templateJsonPath, JSON.stringify(templates, null, 2), 'utf-8', (err) => {
+        if (err) {
+          console.error('書き込みエラー:', err);
+          return;
+        }
+        console.log('書き込み成功');
+      });
+
+    } else {
+      console.log('同じファイルパスのテンプレートがすでに存在します');
+    }
+
+
+  }
+};
+
 
 let fileToOpen = null
 
@@ -372,6 +436,8 @@ function buildMenu() {
           }
         },
         { type: 'separator' },
+        templateMenuItem,
+        { type: 'separator' },
         process.platform === 'darwin' ? { role: 'close' } : { role: 'quit' }
       ]
     },
@@ -446,6 +512,16 @@ function buildMenu() {
         { role: 'zoomOut' },
         { type: 'separator' },
         { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label:'Insert',
+      submenu:[
+        {label:'FrontMatter',
+          click:()=>{
+            console.log("click FrontMatter menu")
+          }
+        }
       ]
     },
     {
@@ -837,3 +913,25 @@ function createTimerWindow(parent = null) {
 
 }
 
+// IPCでキーを受け取って.mdファイル読み込み、内容を返す
+ipcMain.handle('load-md-file', async (event, key) => {
+  try {
+    const data = await pfs.readFile(templateJsonPath, 'utf-8');
+    templates = JSON.parse(data);
+
+    const matched = templates.find(t => t.name === key);
+    if (!matched) {
+      return { success: false, error: 'テンプレートが見つかりません' };
+    }
+
+    // templatePathのファイル内容を読み込む
+    const content = await pfs.readFile(matched.templatePath, 'utf-8');
+    return { success: true, content };
+
+  } catch(err) {
+    // ファイルがなければ空配列からスタート
+    console.error('template.json 読み込み失敗:', err);
+    return { success: false, error: err.message }
+  }
+
+});

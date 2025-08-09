@@ -15,7 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readMarkdownFile: (filename) => ipcRenderer.invoke("read-markdown-file", filename),
   openFile: (filePath) => ipcRenderer.send('request-open-file', filePath),
   onFileUpdated: (callback) => ipcRenderer.on('file-updated', (event, data) => callback(data)),
-  onChangeFont: (callback) => ipcRenderer.on('change-font', (event, font) => callback(font))
+  onChangeFont: (callback) => ipcRenderer.on('change-font', (event, font) => callback(font)),
+  loadMdFile: (key) => ipcRenderer.invoke('load-md-file', key)
 });
 
 ipcRenderer.on('set-background', (_, imgUrl) => {
