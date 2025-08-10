@@ -450,6 +450,9 @@ function initializeEditor() {
     state,
     parent: document.getElementById('editor')
   });
+
+  // 作成後、エディタにフォーカスしてそのまま入力できるようにする
+  editorView.focus();
 }
 
 // --- ファイルを開く処理 ---
@@ -928,6 +931,7 @@ function insertData(view){
 
 }
 
+//テキストを挿入する
 async function insertText(view,text=""){
   const selection = view.state.selection.main;
   const selectedText = view.state.sliceDoc(selection.from, selection.to);

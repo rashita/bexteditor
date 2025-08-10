@@ -6,5 +6,9 @@
   {
     "name": "about",
     "templatePath": "/Users/Tadanori/Library/CloudStorage/Dropbox/R-style/about.md"
+  },
+  {
+    "name": "contentlist",
+    "templatePath": "/Users/Tadanori/Library/CloudStorage/Dropbox/R-style/contentlist.md"
   }
 ]

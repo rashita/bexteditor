@@ -47,46 +47,9 @@ const templateMenuItem = {
     }
 
     const selectedPath = result.filePaths[0];
-    const fileName = path.basename(selectedPath);
-    const parsed = path.parse(fileName);
-
-    let templates = [];
-    try {
-      const data = await pfs.readFile(templateJsonPath, 'utf-8');
-      templates = JSON.parse(data);
-      if (!Array.isArray(templates)){
-        console.log('中身がありません');
-        templates = [];
-
-      } 
-    } catch(err) {
-      // ファイルがなければ空配列からスタート
-      console.error('template.json 読み込み失敗:', err);
-      console.log(templateJsonPath);
-      console.log('ファイルがありません');
-      templates = [];
-    }
-
-    // 重複チェック（templatePathで判定）
-    const exists = templates.some(t => t.templatePath === selectedPath);
-    if (!exists) {
-      templates.push({ name: parsed.name, templatePath: selectedPath });
-      fs.writeFile(templateJsonPath, JSON.stringify(templates, null, 2), 'utf-8', (err) => {
-        if (err) {
-          console.error('書き込みエラー:', err);
-          return;
-        }
-        console.log('書き込み成功');
-      });
-
-    } else {
-      console.log('同じファイルパスのテンプレートがすでに存在します');
-    }
-
-
+    await registerTemplate(selectedPath);
   }
 };
-
 
 let fileToOpen = null
 
@@ -935,3 +898,35 @@ ipcMain.handle('load-md-file', async (event, key) => {
   }
 
 });
+
+// ファイルパスを受けてテンプレート登録処理を行う関数
+async function registerTemplate(selectedPath) {
+  const fileName = path.basename(selectedPath);
+  const parsed = path.parse(fileName);
+
+  let templates = [];
+  try {
+    const data = await pfs.readFile(templateJsonPath, 'utf-8');
+    templates = JSON.parse(data);
+    if (!Array.isArray(templates)){
+      console.log('中身がありません');
+      templates = [];
+    }
+  } catch(err) {
+    // ファイルがなければ空配列からスタート
+    console.error('template.json 読み込み失敗:', err);
+    console.log(templateJsonPath);
+    console.log('ファイルがありません');
+    templates = [];
+  }
+
+  // 重複チェック（templatePathで判定）
+  const exists = templates.some(t => t.templatePath === selectedPath);
+  if (!exists) {
+    templates.push({ name: parsed.name, templatePath: selectedPath });
+    await pfs.writeFile(templateJsonPath, JSON.stringify(templates, null, 2), 'utf-8');
+    console.log('テンプレート登録完了');
+  } else {
+    console.log('同じファイルパスのテンプレートがすでに存在します');
+  }
+}
