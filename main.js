@@ -64,7 +64,7 @@ const watcherMap = new Map(); // filePath → fs.FSWatcher
 //ウィンドウごとにwatcherを登録した方がよい
 
 
-function createWindow(parent = null) {
+function createWindow(parent = null,initialText="") {
   const [parentX, parentY] = parent
   ? [parent.getBounds().x + parent.getBounds().width, parent.getBounds().y] // 親の横にぴたりとつける
   : [null, null]; // fallback
@@ -84,6 +84,13 @@ function createWindow(parent = null) {
   });
 
   win.loadFile(path.join(__dirname, 'index.html'));
+
+  win.webContents.once('did-finish-load', () => {
+    if (initialText) {
+      win.webContents.send('init-text', initialText);
+    }
+  });
+
 
   win.on('close', (event) => {
     return //すぐに閉じる
@@ -155,13 +162,45 @@ async function openFileInNewWindow() {
   }
 }
 
+
+/**
+ * 指定フォルダから親フォルダに遡って rules.json を探す
+ * @param {string} startDir - 探索を開始するフォルダ
+ * @returns {Promise<string|null>} - 見つかったrules.jsonのパス or null
+ */
+async function findRulesFile(startDir) {
+  let currentDir = startDir;
+
+  while (true) {
+    const rulesPath = path.join(currentDir, 'rules.json');
+    try {
+      await pfs.access(rulesPath);
+      return rulesPath; // 見つかったら即返す（優先）
+    } catch {
+      // 見つからなかった場合は親フォルダへ
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      // ルートまで到達
+      break;
+    }
+    currentDir = parentDir;
+  }
+
+  return null; // 見つからなかった
+}
+
 // ファイルを保存する処理
 async function handleFileSave(event, { filePath, content }) {
+  console.log("ファイルを保存します")
+
   const webContents = event.sender
   const win = BrowserWindow.fromWebContents(webContents)
+
+
   if (filePath) {
-    const contentToSave = content.replace(/\u200B/g, '');
-    fs.writeFileSync(filePath, contentToSave);
+    fs.writeFileSync(filePath, content);
     app.addRecentDocument(filePath);
     return filePath;
   } else {
@@ -338,7 +377,7 @@ app.on('ready', () => {
 });
 
 
-
+//フォーカスしているウィンドウを返す
 function getFocusedWindowFont() {
   const focused = BrowserWindow.getFocusedWindow();
   return focused?.currentFont || null;
@@ -369,8 +408,14 @@ function buildMenu() {
         {
           label: 'New',
           accelerator: 'CmdOrCtrl+N',
-          click: () => {
-            createWindow();
+          click: async () => {
+            const focusedWindow = BrowserWindow.getFocusedWindow();
+            if (!focusedWindow) {
+              createWindow();
+              return;
+            }
+            focusedWindow.webContents.send('request-selected-text');
+
           }
         },
         {
@@ -930,3 +975,9 @@ async function registerTemplate(selectedPath) {
     console.log('同じファイルパスのテンプレートがすでに存在します');
   }
 }
+
+ipcMain.on('selected-text', (event, text) => {
+  // 新規ウィンドウを選択テキスト付きで作成
+  console.log(text)
+  createWindow(null,text);
+});

@@ -16,7 +16,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFile: (filePath) => ipcRenderer.send('request-open-file', filePath),
   onFileUpdated: (callback) => ipcRenderer.on('file-updated', (event, data) => callback(data)),
   onChangeFont: (callback) => ipcRenderer.on('change-font', (event, font) => callback(font)),
-  loadMdFile: (key) => ipcRenderer.invoke('load-md-file', key)
+  loadMdFile: (key) => ipcRenderer.invoke('load-md-file', key),
+  onRequestSelectedText: (callback) => ipcRenderer.on('request-selected-text', callback),
+  sendSelectedText: (text) => ipcRenderer.send('selected-text', text),
+  onInitText: (callback) => ipcRenderer.on('init-text', (event, text) => callback(text))
 });
 
 ipcRenderer.on('set-background', (_, imgUrl) => {

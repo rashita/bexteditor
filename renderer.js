@@ -22,6 +22,78 @@ const isAUtoSave = false //自動保存機能のトグル
 
 const fontCompartment = new Compartment();//
 
+//ハッシュタグ用のプラグイン
+const hashtagRegex = /#[\w\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+/gu;
+
+class HashtagWidget extends WidgetType {
+  constructor(text) {
+    super();
+    this.text = text;
+  }
+  toDOM(view) {
+    const span = document.createElement("span");
+    span.className = "cm-hashtag-span";
+    span.textContent = this.text;
+    span.dataset.tag = this.text.slice(1); // "#hoge" → "hoge"
+    span.addEventListener("click", (e) => {
+      e.stopPropagation();
+      console.log("Tag clicked:", this.text);
+      // 将来的に → 検索/別ペイン表示/フィルタなど
+    });
+    return span;
+  }
+  ignoreEvent() {
+    return false; // クリックを拾うため
+  }
+}
+
+const hashtagPlugin = ViewPlugin.fromClass(class {
+  decorations;
+
+  constructor(view) {
+    this.decorations = this.buildDecorations(view);
+  }
+
+  update(update) {
+    if (update.docChanged || update.viewportChanged) {
+      this.decorations = this.buildDecorations(update.view);
+    }
+  }
+
+  buildDecorations(view) {
+    const builder = new RangeSetBuilder();
+    for (let { from, to } of view.visibleRanges) {
+      let text = view.state.doc.sliceString(from, to);
+      let match;
+      while ((match = hashtagRegex.exec(text)) !== null) {
+        const start = from + match.index;
+        const end = start + match[0].length;
+        builder.add(
+          start,
+          end,
+          Decoration.replace({
+            widget: new HashtagWidget(match[0]),
+            inclusive: false
+          })
+        );
+      }
+    }
+    return builder.finish();
+  }
+}, {
+  decorations: v => v.decorations
+});
+
+export const hashtagSpanTheme = EditorView.baseTheme({
+  ".cm-hashtag-span": {
+    color: "#1da1f2",
+    cursor: "pointer",
+    backgroundColor: "rgba(29,161,242,0.1)",
+    borderRadius: "4px",
+    padding: "0 2px"
+  }
+});
+
 //文字数カウント用のプラグイン
 const charCountPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
@@ -424,9 +496,9 @@ function moveLineDown({ state, dispatch }) {
 
 
 // --- CodeMirrorの初期化 ---
-function initializeEditor() {
+function initializeEditor(initialText="") {
   const state = EditorState.create({
-    doc: '',
+    doc: initialText,
     extensions: [
       customKeymap,
       ...mySetup,
@@ -439,6 +511,8 @@ function initializeEditor() {
       imagePlugin,
       internalLinkPlugin,
       charCountPlugin,
+      hashtagPlugin,
+      hashtagSpanTheme,
       fontCompartment.of(EditorView.theme({
         "&": { fontSize: "16px", fontFamily: "serif" },
         ".cm-content":{fontFamily: '"Roboto",Helvetica,Arial,"Hiragino Sans",sans-serif'}
@@ -467,6 +541,7 @@ window.electronAPI.onLoadFile(({ filePath, content }) => {
   setDirtyState(false);
   updateTitle();
 });
+
 
 // --- ファイルを保存する処理 ---
 window.electronAPI.onTriggerSaveFile(async (event, { id }) => {
@@ -949,7 +1024,7 @@ async function insertText(view,text=""){
   editorView.dispatch({
     changes: selection.empty
       // 選択なし → カーソル位置に挿入
-      ? { from: selection.from, insert: frontMatter }
+      ? { from: selection.from, insert: date }
       // 選択あり → 選択範囲を置き換え
       : { from: selection.from, to: selection.to, insert: frontMatter },
     selection: {
@@ -980,3 +1055,30 @@ function renderTemplate(templateText, vars) {
     return vars[p1] !== undefined ? vars[p1] : match;
   });
 }
+
+// IPC: メインから選択テキスト要求が来たら取得して送信
+window.electronAPI.onRequestSelectedText(() => {
+  if (!editorView) {
+    window.electronAPI.sendSelectedText("");
+    return;
+  }
+  const state = editorView.state;
+  const selection = state.sliceDoc(
+    state.selection.main.from,
+    state.selection.main.to
+  );
+  window.electronAPI.sendSelectedText(selection);
+});
+
+// IPC: 新規ウィンドウ初期テキスト設定
+window.electronAPI.onInitText((text) => {
+  if (editorView) {
+    // 新しいドキュメント内容をセット
+    const transaction = editorView.state.update({
+      changes: { from: 0, to: editorView.state.doc.length, insert: text }
+    });
+    editorView.dispatch(transaction);
+  } else {
+    console.log("エディタはありません")
+  }
+});
