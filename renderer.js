@@ -35,11 +35,17 @@ class HashtagWidget extends WidgetType {
     span.className = "cm-hashtag-span";
     span.textContent = this.text;
     span.dataset.tag = this.text.slice(1); // "#hoge" → "hoge"
-    span.addEventListener("click", (e) => {
+    span.contentEditable = "false"; // ← 重要ポイント！
+    span.addEventListener("mousedown", e => {
+      e.preventDefault();
+      e.stopPropagation(); // mousedownを停止
+    });
+    span.onclick = (e) => {
+      e.preventDefault();
       e.stopPropagation();
       console.log("Tag clicked:", this.text);
       // 将来的に → 検索/別ペイン表示/フィルタなど
-    });
+    };
     return span;
   }
   ignoreEvent() {
@@ -55,27 +61,34 @@ const hashtagPlugin = ViewPlugin.fromClass(class {
   }
 
   update(update) {
-    if (update.docChanged || update.viewportChanged) {
+    if (update.docChanged || update.selectionSet || update.viewportChanged) {
       this.decorations = this.buildDecorations(update.view);
     }
   }
 
   buildDecorations(view) {
     const builder = new RangeSetBuilder();
+
+    const cursorPositions = view.state.selection.ranges.map(r => r.head);
+
     for (let { from, to } of view.visibleRanges) {
       let text = view.state.doc.sliceString(from, to);
       let match;
       while ((match = hashtagRegex.exec(text)) !== null) {
         const start = from + match.index;
         const end = start + match[0].length;
-        builder.add(
-          start,
-          end,
-          Decoration.replace({
-            widget: new HashtagWidget(match[0]),
-            inclusive: false
-          })
-        );
+
+        const cursorInside = cursorPositions.some(pos => pos >= start && pos <= end);
+        if (!cursorInside) {
+          builder.add(
+            start,
+            end,
+            Decoration.replace({
+              widget: new HashtagWidget(match[0]),
+              inclusive: false
+            })
+          );
+        }
       }
     }
     return builder.finish();

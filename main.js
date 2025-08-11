@@ -124,6 +124,12 @@ function createWindow(parent = null,initialText="") {
   });
 
   win.on('closed', () => {
+    //ウォッチャーを削除したい
+    if (win.currentWatcher) {
+      win.currentWatcher.close();
+      win.currentWatcher = null;
+    }
+
     windows.delete(win);
   });
 
@@ -327,7 +333,6 @@ function openFileFromPath(filePath,parent=null) {
       //file wachterの追加
       if(!newWindow.currentWacher){
         console.log("ウォッチャーを登録します")
-        //複数ウォッチャーを指定するならmap()にする
         newWindow.currentWacher = chokidar.watch(filePath, {
           usePolling: false,
           ignoreInitial: true,
@@ -337,6 +342,7 @@ function openFileFromPath(filePath,parent=null) {
           }
         });
         newWindow.currentWacher.on('change', () => {
+          if (newWindow.isDestroyed()) return; // 念のため安全策
           const newContent = fs.readFileSync(filePath, 'utf-8');
           newWindow.webContents.send('file-updated', {filePath,newContent});
         });
