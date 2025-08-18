@@ -33,6 +33,8 @@ function saveHistory(history) {
 function addToHistory(filePath, title = '') {
   // ファイル名が 8桁の数字.md ならヒストリーには加えない
   if (/\d{8}\.md$/.test(filePath)) return;
+  // ファイル名が 8桁の数字.md ならヒストリーには加えない
+  if (/^([a-zA-Z_\-]+)(\d{2,3})\.md$/.test(filePath)) return;
   const history = loadHistory();
   const now = new Date().toISOString();
   const filtered = history.filter(entry => entry.filePath !== filePath);
