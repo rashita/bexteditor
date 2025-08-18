@@ -392,6 +392,19 @@ function getFocusedWindowFont() {
 function buildMenu() {
   const focusedFont = getFocusedWindowFont();
 
+  const windowMenuItems = BrowserWindow.getAllWindows().map((win, index) => {
+    const title = win.getTitle() || `ウィンドウ ${index + 1}`;
+    return {
+      label: title,
+      type: "normal",
+      click: () => {
+        if (win.isMinimized()) win.restore();
+        win.focus();
+      },
+    };
+  });
+
+
   const menuTemplate = [
     // {appMenu}
     ...(process.platform === 'darwin' ? [{
@@ -548,6 +561,15 @@ function buildMenu() {
           }
         }
       ]
+    },{
+      role: "windowMenu", // macOS 標準の「ウィンドウ」メニューに統合される
+      submenu: [
+        ...windowMenuItems,
+        { type: "separator" },
+        { role: "minimize" },
+        { role: "zoom" },
+        { role: "close" },
+      ],
     }
   ];
 
