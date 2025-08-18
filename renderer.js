@@ -1267,6 +1267,7 @@ async function insertText(view,text=""){
   const selection = view.state.selection.main;
   const selectedText = view.state.sliceDoc(selection.from, selection.to);
   const date = dayjs().format('ddd, DD MMM YYYY HH:mm:ss');
+  const timeStamp = dayjs().format('ddd, DD MMM YYYY HH:mm:ss'); //メモ用のタイムスタンプ
   const frontMatterSource = await insertTemplateByKey(view,"r-style_template")
   // 置き換えたい変数
   const vars = {
@@ -1274,6 +1275,10 @@ async function insertText(view,text=""){
     date: date,
   };
   const frontMatter = await renderTemplate(frontMatterSource, vars);
+
+  const inserted = selection.empty ? date : frontMatter;
+
+  
 
   editorView.dispatch({
     changes: selection.empty
@@ -1283,7 +1288,7 @@ async function insertText(view,text=""){
       : { from: selection.from, to: selection.to, insert: frontMatter },
     selection: {
       // 挿入後にカーソルを挿入テキストの後ろに移動
-      anchor: selection.from + text.length
+      anchor: selection.from + inserted.length
     },
     scrollIntoView: true
   });
