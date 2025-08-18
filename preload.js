@@ -19,7 +19,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadMdFile: (key) => ipcRenderer.invoke('load-md-file', key),
   onRequestSelectedText: (callback) => ipcRenderer.on('request-selected-text', callback),
   sendSelectedText: (text) => ipcRenderer.send('selected-text', text),
-  onInitText: (callback) => ipcRenderer.on('init-text', (event, text) => callback(text))
+  onInitText: (callback) => ipcRenderer.on('init-text', (event, text) => callback(text)),
+  onToggleTimer: (callback) => ipcRenderer.on('toggle-timer', callback)
 });
 
 ipcRenderer.on('set-background', (_, imgUrl) => {

@@ -22,6 +22,155 @@ const isAUtoSave = false //自動保存機能のトグル
 
 const fontCompartment = new Compartment();//
 
+//タイマー用のプラグイン
+export const timerPlugin = ViewPlugin.fromClass(class {
+  constructor(view) {
+    const statusBar = document.getElementById("status-bar");
+    if (!statusBar) return;
+
+    this.dom = document.createElement("div");
+    this.dom.className = "cm-timer";
+    this.dom.style.cursor = "pointer";
+    this.dom.style.display = "none";
+
+    // タイマー表示
+    this.timerDisplay = document.createElement("span");
+    this.timerDisplay.id = "timer-display";
+    this.timerDisplay.textContent = "▶ 00:00";
+    this.dom.appendChild(this.timerDisplay);
+
+    // タスク表示
+    this.taskDisplay = document.createElement("span");
+    this.taskDisplay.id = "task-display";
+    this.taskDisplay.style.userSelect = "none";
+    this.taskDisplay.textContent = "タスクを選択...";
+    this.taskDisplay.style.cursor = "pointer";
+    this.taskDisplay.style.marginLeft = "12px";
+    this.taskDisplay.style.color = "#888";
+    this.dom.appendChild(this.taskDisplay);
+
+    // 候補リスト
+    this.suggestionList = document.createElement("ul");
+    this.suggestionList.style.position = "absolute";
+    this.suggestionList.style.background = "#fff";
+    this.suggestionList.style.border = "1px solid #ccc";
+    this.suggestionList.style.listStyle = "none";
+    this.suggestionList.style.padding = "0";
+    this.suggestionList.style.margin = "0";
+    this.suggestionList.style.minWidth = "120px"
+    this.suggestionList.style.display = "none";
+    this.suggestionList.style.zIndex = 1000;
+    document.body.appendChild(this.suggestionList);
+
+    // タスク表示クリックで候補表示
+    this.taskDisplay.addEventListener("click", () => {
+      if (this.suggestionList.style.display === "block") {
+        // すでに表示されている場合は非表示に
+        this.suggestionList.style.display = "none";
+      } else {
+        // 表示されていない場合は候補を生成して表示
+        this.showTaskSuggestions();
+      }
+    });
+
+    // ボタン兼タイマー表示
+    this.view = view;
+    this.isRunning = false;
+    this.elapsed = 0;
+    this.intervalId = null;
+
+    // タイマークリックで開始/停止
+    this.timerDisplay.addEventListener("click", () => {
+      if (this.timer) this.stopTimer();
+      else if (this.currentTaskLine) this.startTimer();
+    });
+
+    statusBar.appendChild(this.dom);
+  }
+
+  extractTasks() {
+    const doc = this.view.state.doc;
+    const tasks = [];
+    for (let i = 0; i < doc.lines; i++) {
+      const line = doc.line(i + 1);
+      const match = line.text.match(/^\s*-\s\[ \]\s+(.*)$/);
+      if (match) tasks.push({ lineNumber: i + 1, text: match[1] });
+    }
+    return tasks;
+  }
+
+  showTaskSuggestions() {
+    const tasks = this.extractTasks();
+    if (tasks.length === 0) return;
+
+    this.suggestionList.innerHTML = "";
+    tasks.forEach(task => {
+      const li = document.createElement("li");
+      li.textContent = task.text;
+      li.style.padding = "4px 8px";
+      li.style.cursor = "pointer";
+      li.addEventListener("click", () => {
+        this.taskDisplay.textContent = task.text;
+        this.taskDisplay.style.color = "#000";
+        this.suggestionList.style.display = "none";
+        this.currentTaskLine = task.lineNumber;
+        this.startTimer();
+      });
+      this.suggestionList.appendChild(li);
+    });
+
+    const statusBar = document.getElementById("status-bar");
+
+    //const rect = statusBar.getBoundingClientRect();
+    const rect = this.taskDisplay.getBoundingClientRect();
+    this.suggestionList.style.position = "absolute";
+    this.suggestionList.style.bottom = `${window.innerHeight - rect.top}px`; // ステータスバー上端に揃える
+    this.suggestionList.style.left = `${rect.left + window.scrollX}px`;
+    this.suggestionList.style.width = `${rect.width}px`;
+    this.suggestionList.style.display = "block";
+  }
+
+  startTimer() {
+    if (!this.currentTaskLine) return;
+    this.startTime = Date.now(); // 開始時刻を保存
+    clearInterval(this.timer);
+    this.timer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - this.startTime) / 1000); // 実時間との差
+      const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
+      const s = String(elapsed % 60).padStart(2, "0");
+      const icon = "■" ; // 停止■
+      this.timerDisplay.textContent = `${icon} ${m}:${s}`;
+    }, 500); // 500msごとに更新すると滑らか
+  }
+  stopTimer() { 
+    clearInterval(this.timer);
+    this.timer = null;
+    this.timerDisplay.textContent = "▶ 00:00";
+
+    if (this.currentTaskLine !== null) {
+      // エディタ上の該当行を完了にする
+      const line = this.view.state.doc.line(this.currentTaskLine);
+      const newText = line.text.replace("- [ ]", "- [x]");
+      this.view.dispatch({
+        changes: { from: line.from, to: line.to, insert: newText }
+      });
+
+      // タスク表示をリセット
+      this.taskDisplay.textContent = "タスクを選択...";
+      this.taskDisplay.style.color = "#888";
+      this.currentTaskLine = null;
+    }
+  }
+
+
+  destroy() {
+    if (this.intervalId) clearInterval(this.intervalId);
+    if (this.dom && this.dom.parentNode) {
+      this.dom.parentNode.removeChild(this.dom);
+    }
+  }
+});
+
 //ハッシュタグ用のプラグイン
 const hashtagRegex = /#[\w\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+/gu;
 
@@ -111,11 +260,19 @@ export const hashtagSpanTheme = EditorView.baseTheme({
 const charCountPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
     this.view = view;
+    // 既存の status-bar を取得
+    const statusBar = document.getElementById("status-bar");
+    if (!statusBar) return; // なければ終了
+
+    this.statusBar = statusBar
+
+    // 文字数カウント用の要素を作成
     this.dom = document.createElement("div");
     this.dom.className = "cm-char-count";
     this.dom.style.cssText = "padding: 4px; font-size: 12px; background: #f5f5f5;";
     this.update(view);
-    view.dom.parentNode.appendChild(this.dom);
+    statusBar.appendChild(this.dom);
+    //view.dom.parentNode.appendChild(this.dom);
   }
 
   update(update) {
@@ -418,7 +575,7 @@ const customKeymap = keymap.of([
       return false;  // そうでなければ通常のEnter動作へ
     }
   },
-  {
+  {//挿入コマンド
     key: "Ctrl-t",
     preventDefault: true,
     run:  (view) => {
@@ -426,6 +583,10 @@ const customKeymap = keymap.of([
       insertText(view)
       return true;
     }
+  },
+  {//タスクのトグル
+    key: "Mod-l",
+    run: (view) => toggleTaskAt(view, view.state.selection.main.from)
   }
 ]);
 
@@ -523,6 +684,7 @@ function initializeEditor(initialText="") {
       checklistPlugin,
       imagePlugin,
       internalLinkPlugin,
+      timerPlugin,
       charCountPlugin,
       hashtagPlugin,
       hashtagSpanTheme,
@@ -654,14 +816,15 @@ class CheckboxWidget extends WidgetType {
       console.log("クリックされました")
       e.preventDefault(); // ← ブラウザのデフォルトフォーカス移動を防ぐ
       e.stopPropagation(); // ← エディタへのフォーカス移動などを防ぐ
-      const newText = this.checked ? "[ ]" : "[x]";
-      this.view.dispatch({
-        changes: {
-          from: this.from,
-          to: this.to,
-          insert: newText
-        }
-      });
+      toggleTaskAt(this.view, this.from);
+      // const newText = this.checked ? "[ ]" : "[x]";
+      // this.view.dispatch({
+      //   changes: {
+      //     from: this.from,
+      //     to: this.to,
+      //     insert: newText
+      //   }
+      // });
     };
 
     label.appendChild(checkbox);
@@ -741,6 +904,82 @@ const checklistPlugin = ViewPlugin.fromClass(class {
 });
 
 
+// 共通のトグル処理
+function toggleTaskAt(view, from) {
+  const line = view.state.doc.lineAt(from);
+  const text = line.text;
+
+  const match = text.match(/^(\s*)[-*]\s+\[( |x|-)\]/i);
+  if (!match) return false;
+
+  const indent = match[1].length;
+  const current = match[2].toLowerCase();
+
+  let next;
+  if (current === " ") next = "[x]";
+  else next = "[ ]";
+
+  const replaceFrom = line.from + indent + 2;
+  const replaceTo = replaceFrom + 3;
+
+  view.dispatch({
+    changes: { from: replaceFrom, to: replaceTo, insert: next }
+  });
+
+  // 子の状態を親に反映
+  updateParentTasks(view, line.number, indent);
+
+  return true;
+}
+
+function updateParentTasks(view, lineNumber, childIndent) {
+  let currentLineNum = lineNumber - 1;
+
+  while (currentLineNum > 0) {
+    const line = view.state.doc.line(currentLineNum);
+    const match = line.text.match(/^(\s*)[-*]\s+\[( |x|-)\]/i);
+
+    if (!match) break; // タスクじゃない → 親探し終了
+
+    const parentIndent = match[1].length;
+    if (parentIndent < childIndent) {
+      // 親の行が見つかった → 子の状態チェック
+      const allChildrenChecked = areAllChildrenChecked(view, currentLineNum, parentIndent);
+      const newMark = allChildrenChecked ? "[x]" : "[ ]";
+
+      const replaceFrom = line.from + parentIndent + 2;
+      const replaceTo = replaceFrom + 3;
+
+      view.dispatch({
+        changes: { from: replaceFrom, to: replaceTo, insert: newMark }
+      });
+
+      // 再帰的にさらに上の親へ
+      updateParentTasks(view, currentLineNum, parentIndent);
+      break;
+    }
+
+    currentLineNum--;
+  }
+}
+
+function areAllChildrenChecked(view, parentLineNum, parentIndent) {
+  let checked = true;
+  for (let i = parentLineNum + 1; i <= view.state.doc.lines; i++) {
+    const line = view.state.doc.line(i);
+    const match = line.text.match(/^(\s*)[-*]\s+\[( |x|-)\]/i);
+    if (!match) break; // 子リスト終わり
+
+    const indent = match[1].length;
+    if (indent <= parentIndent) break; // 階層戻ったら終了
+
+    if (match[2].toLowerCase() !== "x") {
+      checked = false;
+      break;
+    }
+  }
+  return checked;
+}
 ///////////////////////////
 // 🖼️ 画像表示 Widget
 ///////////////////////////
@@ -951,6 +1190,10 @@ function setupClick(view) {
       const filePath = target.dataset.filepath;
       console.log('開くファイル:', filePath);
       window.electronAPI.openFile(filePath);
+      //モーダルが開いていたら閉じる
+      const modalOverlayO = document.getElementById("modalOverlayO");
+      modalOverlayO?.classList.contains('hidden') || modalOverlayO.classList.add('hidden');
+
     }
   });
 }
@@ -1032,8 +1275,6 @@ async function insertText(view,text=""){
   };
   const frontMatter = await renderTemplate(frontMatterSource, vars);
 
-
-
   editorView.dispatch({
     changes: selection.empty
       // 選択なし → カーソル位置に挿入
@@ -1093,5 +1334,21 @@ window.electronAPI.onInitText((text) => {
     editorView.dispatch(transaction);
   } else {
     console.log("エディタはありません")
+  }
+});
+
+window.electronAPI.onToggleTimer(() => {
+  const statusBar = document.getElementById('status-bar');
+  if (!statusBar) return;
+
+  // タイマー表示部分の表示/非表示を切り替え
+  const timerDom = statusBar.querySelector('.cm-timer');
+  if (timerDom) {
+    timerDom.style.display = timerDom.style.display === 'none' ? 'inline-block' : 'none';
+  }
+
+  const taskDom = statusBar.querySelector('.cm-task');
+  if (taskDom) {
+    taskDom.style.display = taskDom.style.display === 'none' ? 'inline-block' : 'none';
   }
 });

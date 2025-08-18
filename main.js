@@ -383,7 +383,7 @@ app.on('ready', () => {
 });
 
 
-//フォーカスしているウィンドウを返す
+//フォーカスしているウィンドウのフォントを返す
 function getFocusedWindowFont() {
   const focused = BrowserWindow.getFocusedWindow();
   return focused?.currentFont || null;
@@ -414,13 +414,12 @@ function buildMenu() {
         {
           label: 'New',
           accelerator: 'CmdOrCtrl+N',
-          click: async () => {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (!focusedWindow) {
+          click: async (menuItem, browserWindow) => {
+            if (!browserWindow) {
               createWindow();
               return;
             }
-            focusedWindow.webContents.send('request-selected-text');
+            browserWindow.webContents.send('request-selected-text');
 
           }
         },
@@ -442,10 +441,9 @@ function buildMenu() {
         {
           label: 'Save',
           accelerator: 'CmdOrCtrl+S',
-          click: () => {
-            const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) {
-              focusedWindow.webContents.send('trigger-save-file', { id: focusedWindow.id });
+          click: (menuItem, browserWindow) => {
+            if (browserWindow) {
+              browserWindow.webContents.send('trigger-save-file', { id: browserWindow.id });
             }
           }
         },
@@ -491,11 +489,10 @@ function buildMenu() {
             {label:'Jounal',
               type: 'radio',
               checked:  (focusedFont ?? 'sans-serif') === 'sans-serif',
-              click:()=> {
-                const focused = BrowserWindow.getFocusedWindow();
-                if(!focused)return
-                focused.currentFont = 'sans-serif';
-                focused.webContents.send('change-font', {
+              click:(menuItem, browserWindow)=> {
+                if(!browserWindow)return
+                browserWindow.currentFont = 'sans-serif';
+                browserWindow.webContents.send('change-font', {
                 size: '18px',
                 family: '"Roboto",Helvetica,Arial,"Hiragino Sans",sans-serif'
                 });
@@ -504,11 +501,10 @@ function buildMenu() {
             {label:"Writing",
               type: 'radio',
               checked: focusedFont === 'serif',
-              click:()=> {
-                const focused = BrowserWindow.getFocusedWindow();
-                if(!focused)return
-                focused.currentFont = 'serif';
-                focused.webContents.send('change-font', {
+              click:(menuItem, browserWindow)=> {
+                if(!browserWindow)return
+                browserWindow.currentFont = 'serif';
+                browserWindow.webContents.send('change-font', {
                   size: '18px',
                   family: '"Noto Serif JP", "Hiragino Mincho ProN", "Hiragino Mincho", serif'
                 });
@@ -542,9 +538,13 @@ function buildMenu() {
       label:'Tool',
       submenu: [
         { label:'Timer',
-          click: () => {
-            console.log("click Timer menu")
-            createTimerWindow()
+          type: 'checkbox',
+          accelerator: 'Cmd+Alt+T',
+          checked: false, // 初期状態
+          click: (menuItem, browserWindow) => {
+            if (browserWindow) {
+              browserWindow.webContents.send('toggle-timer');
+            }
           }
         }
       ]
@@ -713,8 +713,13 @@ ipcMain.on("shift-file", async (event, currentPath,offsetDays) => {
     });
 
     if (response === 0) {
-      //fs.writeFileSync(newPath, ""); // 空ファイル作成
-      //event.sender.send("open-file", newPath);
+      try {
+        fs.writeFileSync(newPath, ""); // 空ファイル作成
+        openFileFromPath(newPath);
+      } catch (err) {
+        console.error("ファイル作成またはオープンに失敗:", err);
+      }
+
     }
   }
 });
