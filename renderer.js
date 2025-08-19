@@ -10,7 +10,7 @@ import { tags } from "@lezer/highlight";
 import { searchKeymap } from '@codemirror/search';
 import { closeBrackets, autocompletion, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
 import { lintKeymap } from '@codemirror/lint';
-import { syntaxTree } from "@codemirror/language";
+import { syntaxTree , foldService} from "@codemirror/language";
 import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemirror/language"; //下位項目の開閉
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
