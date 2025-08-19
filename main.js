@@ -841,13 +841,14 @@ function linkOpenAndLoadFile(event,filePath) {
     startWindow.currentFilePath = filePath;
     console.log(startWindow.currentFilePath)
     //新しいウォッチャーを登録するよ
-    if (startWindow.currentWacher){
+    currentWatcher
+    if (startWindow.currentWatcher){
       console.log("古いウォッチャーを解除します")
-      startWindow.currentWacher.close()
+      startWindow.currentWatcher.close()
     }
-    console.log("ウォッチャーを登録します")
+    console.log("ウォッチャーを再設定します")
 
-    startWindow.currentWacher = chokidar.watch(filePath, {
+    startWindow.currentWatcher = chokidar.watch(filePath, {
       usePolling: false,
       ignoreInitial: true,
       awaitWriteFinish: {
@@ -855,7 +856,7 @@ function linkOpenAndLoadFile(event,filePath) {
         pollInterval: 100
       }
     });
-    startWindow.currentWacher.on('change', () => {
+    startWindow.currentWatcher.on('change', () => {
       const newContent = fs.readFileSync(filePath, 'utf-8');
       startWindow.webContents.send('file-updated', {filePath,newContent});
     });
