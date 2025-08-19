@@ -1270,9 +1270,11 @@ async function insertText(view,text=""){
   const timeStamp = dayjs().format('ddd, DD MMM YYYY HH:mm:ss'); //メモ用のタイムスタンプ
   const frontMatterSource = await insertTemplateByKey(view,"r-style_template")
   // 置き換えたい変数
+  const URL = encodeURIComponent(selectedText)
   const vars = {
     title: selectedText,
     date: date,
+    url: URL
   };
   const frontMatter = await renderTemplate(frontMatterSource, vars);
 
