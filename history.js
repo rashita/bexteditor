@@ -39,7 +39,7 @@ function addToHistory(filePath, title = '') {
   const now = new Date().toISOString();
   const filtered = history.filter(entry => entry.filePath !== filePath);
   const newEntry = { filePath, openedAt: now, title };
-  const updated = [newEntry, ...filtered].slice(0, 20);
+  const updated = [newEntry, ...filtered].slice(0, 30);
   saveHistory(updated);
 }
 
