@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   shiftFile: (filePath,offsetDays) => ipcRenderer.send('shift-file', filePath,offsetDays),
   levelFile: (filePath,isUp) => ipcRenderer.send('level-file', filePath,isUp),
   readMarkdownFile: (filename) => ipcRenderer.invoke("read-markdown-file", filename),
-  openFile: (filePath) => ipcRenderer.send('request-open-file', filePath),
+  openFile: (filePath,fullPath) => ipcRenderer.send('request-open-file', filePath,fullPath),
   onFileUpdated: (callback) => ipcRenderer.on('file-updated', (event, data) => callback(data)),
   onChangeFont: (callback) => ipcRenderer.on('change-font', (event, font) => callback(font)),
   loadMdFile: (key) => ipcRenderer.invoke('load-md-file', key),

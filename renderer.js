@@ -385,6 +385,9 @@ class InternalLinkWidget extends WidgetType{
       const isModifierPressed = e.metaKey || e.ctrlKey; //MacとWinでcommand
 
       if (isModifierPressed) {
+        console.log("コントロールクリックです")
+        console.log(window.currentFilePath)
+        window.electronAPI.openFile(this.linkText,window.currentFilePath)
         // 新規ウィンドウなど
       } else {
         //ここにリンクの読み込みを追加

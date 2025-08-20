@@ -580,13 +580,6 @@ function buildMenu() {
 
 
 
-
-
-
-
-
-
-
 app.whenReady().then(() => {
   console.log("when ready start");
   buildMenu()
@@ -889,8 +882,37 @@ ipcMain.handle("read-markdown-file", async (_, fileFullPath) => {
 
 });
 
-ipcMain.on('request-open-file', (event, filePath) => {
-  openFileFromPath(expandPath(filePath));
+ipcMain.on('request-open-file', (event, filePath,currentFilePath="") => {
+    const parentWindow = BrowserWindow.fromWebContents(event.sender)
+
+  if (currentFilePath == ""){
+    openFileFromPath(expandPath(filePath));
+    return
+  }
+
+  const dirName = path.dirname(currentFilePath);   // 例: Dropbox/logtext
+  console.log(filePath)
+  const NewFileName = filePath + ".md"
+  const newPath = path.join(dirName, NewFileName);
+  console.log(newPath + "を内部リンクとして処理します");
+  if (fs.existsSync(newPath)) {
+    // ファイルを開く
+    console.log(newPath + "は存在しています");
+    openFileFromPath(newPath,parentWindow)
+  } else{
+    console.log(newPath + "は存在しないので子フォルダを探します");
+    const entries = fs.readdirSync(dirName, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const childIndex = path.join(dirName, entry.name, NewFileName);
+        if (fs.existsSync(childIndex)) {
+          openFileFromPath(childIndex,parentWindow)
+          //ウォッチャーが存在するなら消す
+        }
+      }
+    }
+  }
+  
 });
 
 //ファイルパスのユーザーホームの部分を~に変換
