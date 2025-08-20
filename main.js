@@ -841,7 +841,6 @@ function linkOpenAndLoadFile(event,filePath) {
     startWindow.currentFilePath = filePath;
     console.log(startWindow.currentFilePath)
     //新しいウォッチャーを登録するよ
-    currentWatcher
     if (startWindow.currentWatcher){
       console.log("古いウォッチャーを解除します")
       startWindow.currentWatcher.close()
@@ -873,17 +872,17 @@ ipcMain.handle("read-markdown-file", async (_, fileFullPath) => {
 
   const history = loadHistory()
   const content  = history
-    .map(entry => "[["+shortenPath(entry.filePath)+"]]")  // ファイルパスだけ取り出す
+    .map(entry => shortenPath(entry.filePath))  // ファイルパスだけ取り出す
     .join('\n');
 
   if(!fileFullPath)return content
 
-  const upFilePath = levelDateInFilename(fileFullPath)
+  // const upFilePath = levelDateInFilename(fileFullPath)
 
-  if(upFilePath) {
-    const mapContent = fs.readFileSync(upFilePath, "utf-8");
-    return (content + "\n\n" + mapContent)
-  }
+  // if(upFilePath) {
+  //   const mapContent = fs.readFileSync(upFilePath, "utf-8");
+  //   return (content + "\n\n" + mapContent)
+  // }
 
   return content
   

@@ -1062,6 +1062,7 @@ const isMac = navigator.userAgent.includes("Mac");
 // DOM取得
 const modalOverlayO = document.getElementById("modalOverlayO");
 const modalInputO = document.getElementById("modalInputO");
+const modalSelectUlO = document.getElementById("modalResultsO");
 const modalOverlayP = document.getElementById("modalOverlayP");
 const modalInputP = document.getElementById("modalInputP");
 let modalEditor = document.getElementById("modal-editor");
@@ -1106,8 +1107,51 @@ modalOverlayP.addEventListener("click", (e) => {
   if (e.target === modalOverlayP) modalOverlayP.classList.add("hidden");
 });
 
-
 function showModalWithContent(content) {
+  //modalInputP
+  modalSelectUlO.innerHTML = ""; // 初期化
+
+  modalSelectUlO.classList.add("file-list");
+
+  const lines = content.split("\n").filter(line => line.trim() !== "");
+
+  lines.forEach((line, idx) => {
+    const li = document.createElement("li");
+    li.textContent = line;
+    if (idx === 0) li.classList.add("selected"); // 最初を選択状態に
+    li.addEventListener("click", () => openFile(line));
+    modalSelectUlO.appendChild(li);
+  });
+
+  // input にキーイベント仕込む
+  modalInputO.onkeydown = (e) => {
+    const selected = modalSelectUlO.querySelector(".selected");
+    console.log("hit key")
+    if (!selected) return;
+    if (e.key === "ArrowDown") {
+          console.log("hit ArrowDown")
+      e.preventDefault();
+      const next = selected.nextElementSibling;
+      if (next) {
+        selected.classList.remove("selected");
+        next.classList.add("selected");
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prev = selected.previousElementSibling;
+      if (prev) {
+        selected.classList.remove("selected");
+        prev.classList.add("selected");
+      }
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      window.electronAPI.openFile(selected.textContent);
+    }
+  };
+}
+
+
+function showModalWithContent_old(content) {
   modalEditor.innerHTML = ""; // 再表示時の初期化
 
   const smallFontTheme = EditorView.theme({
