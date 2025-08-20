@@ -1115,15 +1115,38 @@ function showModalWithContent(content) {
 
   const lines = content.split("\n").filter(line => line.trim() !== "");
 
-  lines.forEach((line, idx) => {
+  // li 要素を最初に全部作っておく
+  const items = lines.map((line, idx) => {
     const li = document.createElement("li");
     li.textContent = line;
-    if (idx === 0) li.classList.add("selected"); // 最初を選択状態に
-    li.addEventListener("click", () => openFile(line));
+    if (idx === 0) li.classList.add("selected");
+    li.addEventListener("click", () => window.electronAPI.openFile(line));
     modalSelectUlO.appendChild(li);
+    return li;
   });
 
-  // input にキーイベント仕込む
+
+  // フィルタリング処理
+  modalInputO.oninput = (e) => {
+    const query = e.target.value.toLowerCase();
+    let firstVisible = null;
+    items.forEach(li => {
+      if (!query || li.textContent.toLowerCase().includes(query)) {
+        li.style.display = "block";
+        if (!firstVisible) firstVisible = li;
+      } else {
+        li.style.display = "none";
+        li.classList.remove("selected");
+      }
+    });
+    // 入力後、最初にマッチした項目を選択状態にする
+    if (firstVisible) {
+      items.forEach(li => li.classList.remove("selected"));
+      firstVisible.classList.add("selected");
+    }
+  };
+
+  // input のカーソル操作
   modalInputO.onkeydown = (e) => {
     const selected = modalSelectUlO.querySelector(".selected");
     console.log("hit key")
