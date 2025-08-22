@@ -386,7 +386,6 @@ class InternalLinkWidget extends WidgetType{
 
       if (isModifierPressed) {
         console.log("コントロールクリックです")
-        console.log(window.currentFilePath)
         window.electronAPI.openFile(this.linkText,window.currentFilePath)
         // 新規ウィンドウなど
       } else {
@@ -562,6 +561,17 @@ const customKeymap = keymap.of([
     }
   },
   {
+    key: "Enter",
+    run: ({ state, dispatch }) => {
+      let { from } = state.selection.main;
+      let line = state.doc.lineAt(from);
+      let m = line.text.match(/^([ \u3000]+)/); // 行頭スペース(全角含む)検出
+      let insert = "\n" + (m ? m[1] : "");
+      dispatch(state.update(state.replaceSelection(insert)));
+      return true;
+    }
+  },
+  {
     key: "Mod-Enter", // Cmd+Enter または Ctrl+Enter
     run: (view) => {
       console.log("hit command + enter");
@@ -569,6 +579,7 @@ const customKeymap = keymap.of([
       if (linkText) {
         // Cmd+Enter かつ [[...]] 内にカーソルがある場合の処理
         console.log("Cmd+Enter inside internal link:", linkText);
+        window.electronAPI.openFile(linkText,window.currentFilePath)
 
         // Electron の IPC で新規ウィンドウを開く例
         // window.electronAPI.openInNewWindow(linkText);

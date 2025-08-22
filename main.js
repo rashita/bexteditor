@@ -267,47 +267,33 @@ ipcMain.on("open-link", async (event, linkText,currentFilePath) => {
     // ファイルを開く
     console.log(newPath + "は存在しています");
     linkOpenAndLoadFile(event,newPath)
-  } else{
-    console.log(newPath + "は存在しないので子フォルダを探します");
-    const entries = fs.readdirSync(dirName, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const childIndex = path.join(dirName, entry.name, NewFileName);
-        if (fs.existsSync(childIndex)) {
-          linkOpenAndLoadFile(event,childIndex)
-          //ウォッチャーが存在するなら消す
-        }
+    return 
+  } 
+  console.log(newPath + "は存在しないので子フォルダを探します");
+
+  const entries = fs.readdirSync(dirName, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      const childIndex = path.join(dirName, entry.name, NewFileName);
+      if (fs.existsSync(childIndex)) {
+        linkOpenAndLoadFile(event,childIndex)
+        return
       }
     }
   }
-
-
-  return
-
-  if (fs.existsSync(newPath)) {
-    // 既存ファイルを開く
-    console.log(newPath + "は存在しています");
-    try {
-       console.log(newPath + "を読み込みます");
-      const content = fs.readFileSync(newPath, 'utf-8');
-      event.sender.send("load-file", { filePath: newPath, content });
-    } catch (e) {
-      dialog.showErrorBox("読み込みエラー", `ファイル読み込みに失敗しました: ${newPath}`);
-    }
-  } else {
-    const { response } = await dialog.showMessageBox({
-      type: "question",
-      buttons: ["作成", "キャンセル"],
-      defaultId: 0,
-      cancelId: 1,
-      message: `${path.basename(newPath)} は存在しません。作成しますか？`
-    });
-
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    buttons: ["作成", "キャンセル"],
+    defaultId: 0,
+    cancelId: 1,
+    message: `${path.basename(newPath)} は存在しません。作成しますか？`
+  });
     if (response === 0) {
+      console.log("ファイルの作成を行う直前です")
       //fs.writeFileSync(newPath, ""); // 空ファイル作成
       //event.sender.send("open-file", newPath);
     }
-  }
+
 });
 
 app.setName('bextEditor');
