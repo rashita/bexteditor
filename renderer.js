@@ -3,14 +3,14 @@ import { EditorView } from '@codemirror/view';
 import { ViewPlugin, Decoration, WidgetType } from "@codemirror/view";
 import { EditorState ,StateEffect,Compartment} from "@codemirror/state";
 import { RangeSetBuilder  } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap, indentWithTab} from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab,deleteCharBackward} from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { foldGutter, indentOnInput, HighlightStyle, syntaxHighlighting, foldKeymap } from '@codemirror/language';
 import { tags } from "@lezer/highlight";
 import { searchKeymap } from '@codemirror/search';
 import { closeBrackets, autocompletion, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete';
 import { lintKeymap } from '@codemirror/lint';
-import { syntaxTree , foldService} from "@codemirror/language";
+import { syntaxTree , indentUnit,foldService} from "@codemirror/language";
 import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemirror/language"; //下位項目の開閉
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
@@ -560,17 +560,32 @@ const customKeymap = keymap.of([
       return true;
     }
   },
-  {
-    key: "Enter",
-    run: ({ state, dispatch }) => {
-      let { from } = state.selection.main;
-      let line = state.doc.lineAt(from);
-      let m = line.text.match(/^([ \u3000]+)/); // 行頭スペース(全角含む)検出
-      let insert = "\n" + (m ? m[1] : "");
-      dispatch(state.update(state.replaceSelection(insert)));
-      return true;
-    }
-  },
+  // {
+  //   key: "Enter",
+  //   run: ({ state, dispatch }) => {
+  //     let { from } = state.selection.main;
+  //     let line = state.doc.lineAt(from);
+
+  //     // 行全体が全角スペースのみの場合
+  //     if (/^[\u3000]+$/.test(line.text)) {
+  //       dispatch(
+  //         state.update({
+  //           changes: { from: line.from, to: line.to, insert: "" },
+  //           selection: { anchor: line.from } // 行頭にカーソルを置く
+  //         })
+  //       );
+  //       return true;
+  //     }
+
+  //     if (/^[\u3000]/.test(line.text)) {
+  //       let m = line.text.match(/^([ \u3000]+)/); // 行頭スペース(全角含む)検出
+  //       let insert = "\n" + (m ? m[1] : "");
+  //       dispatch(state.update(state.replaceSelection(insert)));
+  //       return tru;
+  //     }
+  // return false; 
+  //   }
+  // },
   {
     key: "Mod-Enter", // Cmd+Enter または Ctrl+Enter
     run: (view) => {
@@ -601,9 +616,9 @@ const customKeymap = keymap.of([
   {//タスクのトグル
     key: "Mod-l",
     run: (view) => toggleTaskAt(view, view.state.selection.main.from)
-  }
+  },
+  {key: "Backspace", run: deleteIndentation }
 ]);
-
 
 // カスタムのセット
 const mySetup = [
@@ -681,7 +696,6 @@ function moveLineDown({ state, dispatch }) {
   });
   return true;
 }
-
 
 // --- CodeMirrorの初期化 ---
 function initializeEditor(initialText="") {
@@ -1183,6 +1197,9 @@ function showModalWithContent(content) {
     } else if (e.key === "Enter") {
       e.preventDefault();
       window.electronAPI.openFile(selected.textContent);
+      //モーダルが開いていたら閉じる
+      const modalOverlayO = document.getElementById("modalOverlayO");
+      modalOverlayO?.classList.contains('hidden') || modalOverlayO.classList.add('hidden');
     }
   };
 }
@@ -1440,3 +1457,27 @@ window.electronAPI.onToggleTimer(() => {
     taskDom.style.display = taskDom.style.display === 'none' ? 'inline-block' : 'none';
   }
 });
+
+// Tab幅単位削除
+function deleteIndentation(view) {
+  const { state, dispatch } = view;
+  const range = state.selection.main;
+  const line = state.doc.lineAt(range.head);
+
+  // 行頭スペースの範囲
+  const indent = line.text.match(/^ +/);
+
+  if (indent && range.head <= line.from + indent[0].length) {
+    // Tab幅単位で削除
+    const unit = state.facet(indentUnit).length || 2;
+    const deleteFrom = Math.max(line.from, range.head - unit);
+    dispatch(state.update({
+      changes: { from: deleteFrom, to: range.head },
+      selection: { anchor: deleteFrom }
+    }));
+    return true;
+  }
+
+  // 行頭以外は通常の Backspace に委譲
+  return deleteCharBackward(view);
+}
