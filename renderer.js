@@ -31,31 +31,39 @@ function currentEntry() {
   };
 }
 
-// 内部リンクで別ページへ移動するとき
-function goToPage(entry) {
-  history.visit(currentEntry()); // 今の場所を履歴に保存
-  openPage(entry);               // 実際にページを開く処理
-}
-
-// 戻る操作
-function goBack() {
-  const prev = history.back(currentEntry());
-  if (prev) {
-    openPage(prev); // ページを開く処理（スクロール復元などもここで）
+// 履歴を戻る操作
+async function goBack(view) {
+  console.log("ブラウザバックを実行します")
+  const prev = NaviHistory.back(currentEntry());
+  if(prev){
+    await window.electronAPI.openLink(prev.filePath,window.currentFilePath)
+    console.log(prev)
+    view.dispatch({
+      selection: { anchor: prev.cursorPos },
+      effects: EditorView.scrollIntoView(prev.cursorPos)
+    });
+    view.scrollDOM.scrollTop = prev.scrollTop;
+    //ファイルを開く
   }
+  
+  return true;
 }
 
-// 進む操作
-function goForward() {
-  const next = history.forward(currentEntry());
-  if (next) {
-    openPage(next);
-  }
-}
-
-// ダミー: ページを開く処理
-function openPage(entry) {
-  console.log("Opening:", entry);
+// 履歴を進む操作
+async function goForward(view) {
+    console.log("ブラウザフォワードを実行します")
+    const next = NaviHistory.forward(currentEntry());
+    if(next){
+      await window.electronAPI.openLink(next.filePath,window.currentFilePath)
+      console.log(next)
+      view.dispatch({
+        selection: { anchor: next.cursorPos },
+        effects: EditorView.scrollIntoView(next.cursorPos)
+      });
+      view.scrollDOM.scrollTop = next.scrollTop;
+      //ファイルを開く
+    }
+    return true;
 }
 
 const isAUtoSave = false //自動保存機能のトグル
@@ -579,25 +587,15 @@ const customKeymap = keymap.of([
       return true;
     }
   },
-    {
+  {
     key: "Mod-[",
     preventDefault: true,
-    run: async (view) => {
-      console.log("hit mond-[")
-      const prev = NaviHistory.back(currentEntry());
-      if(prev){
-        await window.electronAPI.openLink(prev.filePath,window.currentFilePath)
-        console.log(prev)
-        view.dispatch({
-          selection: { anchor: prev.cursorPos },
-          effects: EditorView.scrollIntoView(prev.cursorPos)
-        });
-        view.scrollDOM.scrollTop = prev.scrollTop;
-        //ファイルを開く
-      }
-      
-      return true;
-    }
+    run: goBack
+  },
+  {
+    key: "Mod-]",
+    preventDefault: true,
+    run: goForward
   },
   {
     key: "Mod-Alt-[",
