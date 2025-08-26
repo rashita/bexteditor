@@ -15,8 +15,48 @@ import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemir
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
 import { editingKeymap } from './lib/keybindings.js';
+import NavigationHistory from './lib/NavigationHistory.js';
 
 import dayjs from 'dayjs';//日付の操作用
+
+// 履歴インスタンスを作る（このウィンドウ専用）
+const NaviHistory = new NavigationHistory();
+
+// 今の位置を表すオブジェクト（例として）
+function currentEntry() {
+  return {
+    filePath: window.currentFilePath,
+    cursorPos: editorView.state.selection.main.head,
+    scrollTop: editorView.scrollDOM.scrollTop  
+  };
+}
+
+// 内部リンクで別ページへ移動するとき
+function goToPage(entry) {
+  history.visit(currentEntry()); // 今の場所を履歴に保存
+  openPage(entry);               // 実際にページを開く処理
+}
+
+// 戻る操作
+function goBack() {
+  const prev = history.back(currentEntry());
+  if (prev) {
+    openPage(prev); // ページを開く処理（スクロール復元などもここで）
+  }
+}
+
+// 進む操作
+function goForward() {
+  const next = history.forward(currentEntry());
+  if (next) {
+    openPage(next);
+  }
+}
+
+// ダミー: ページを開く処理
+function openPage(entry) {
+  console.log("Opening:", entry);
+}
 
 const isAUtoSave = false //自動保存機能のトグル
 
@@ -390,7 +430,11 @@ class InternalLinkWidget extends WidgetType{
         // 新規ウィンドウなど
       } else {
         //ここにリンクの読み込みを追加
+        NaviHistory.visit(currentEntry());
         await window.electronAPI.openLink(this.linkText,window.currentFilePath)
+        //hisutoryに追加
+        
+        console.log("ヒストリーに追加しました" + currentEntry())
         //今開いているウィンドウを書き換えす
       }
 
@@ -532,6 +576,26 @@ const customKeymap = keymap.of([
       }
       console.log("Mod-Alt-:です")
       window.electronAPI.levelFile(currentFilePath,false);
+      return true;
+    }
+  },
+    {
+    key: "Mod-[",
+    preventDefault: true,
+    run: async (view) => {
+      console.log("hit mond-[")
+      const prev = NaviHistory.back(currentEntry());
+      if(prev){
+        await window.electronAPI.openLink(prev.filePath,window.currentFilePath)
+        console.log(prev)
+        view.dispatch({
+          selection: { anchor: prev.cursorPos },
+          effects: EditorView.scrollIntoView(prev.cursorPos)
+        });
+        view.scrollDOM.scrollTop = prev.scrollTop;
+        //ファイルを開く
+      }
+      
       return true;
     }
   },

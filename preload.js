@@ -9,7 +9,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   updateTitle: (data) => ipcRenderer.send('update-title', data),
   openSpecificFile: (filePath) => ipcRenderer.invoke('open-specific-file', filePath),
   onLoadFile: (callback) => ipcRenderer.on('load-file', (event, data) => callback(data)),
-  openLink: (linkText,currentFilePath) => ipcRenderer.send("open-link", linkText,currentFilePath),
+  openLink_old: (linkText,currentFilePath) => ipcRenderer.send("open-link", linkText,currentFilePath),
+  // 内部リンクを開く関数
+  openLink: (linkText, currentFilePath) => {
+    return new Promise((resolve, reject) => {
+      // メインプロセスから完了通知が来たら resolve
+      ipcRenderer.once("open-link-done", () => resolve());
+
+      // メインプロセスにリンクを送信
+      ipcRenderer.send("open-link", linkText, currentFilePath);
+
+      // エラー通知を使いたい場合は reject を追加できる
+      // ipcRenderer.once("open-link-error", (event, err) => reject(err));
+    });
+  },
   shiftFile: (filePath,offsetDays) => ipcRenderer.send('shift-file', filePath,offsetDays),
   levelFile: (filePath,isUp) => ipcRenderer.send('level-file', filePath,isUp),
   readMarkdownFile: (filename) => ipcRenderer.invoke("read-markdown-file", filename),
