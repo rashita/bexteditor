@@ -322,65 +322,6 @@ ipcMain.on("open-link", async (event, linkText, currentFilePath) => {
 
 });
 
-//内部リンクの呼び出し
-ipcMain.on("open-lin_old", async (event, linkText,currentFilePath) => {
-  console.log("リンククリック検知:", linkText);
-  if (!currentFilePath) return
-  if (path.isAbsolute(linkText)){//絶対パスかどうか
-    console.log(linkText + "を内部リンクとして処理します");
-    try {
-      await linkOpenAndLoadFile(event, linkText); // Promise 対応済み
-      event.sender.send("open-link-done");       // 読み込み完了を通知
-    } catch (err) {
-      console.error(err);
-      // 必要ならエラー通知
-      // event.sender.send("open-link-error", err);
-    }
-
-
-    //linkOpenAndLoadFile(event,linkText)
-    //return 
-  }
-  //ここでリンクの処理を行うひとまず適当に作る
-  const fileName = path.basename(currentFilePath); // 例: 20250725.md
-  const dirName = path.dirname(currentFilePath);   // 例: Dropbox/logtext
-  const NewFileName = linkText + ".md"
-  const newPath = path.resolve(dirName, NewFileName);
-  //const newPath = path.join(dirName , NewFileName)
-  console.log(newPath + "を内部リンクとして処理します");
-  if (fs.existsSync(newPath)) {
-    // ファイルを開く
-    console.log(newPath + "は存在しています");
-    linkOpenAndLoadFile(event,newPath)
-    return 
-  } 
-  console.log(newPath + "は存在しないので子フォルダを探します");
-
-  const entries = fs.readdirSync(dirName, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      const childIndex = path.join(dirName, entry.name, NewFileName);
-      if (fs.existsSync(childIndex)) {
-        linkOpenAndLoadFile(event,childIndex)
-        return
-      }
-    }
-  }
-  const { response } = await dialog.showMessageBox({
-    type: "question",
-    buttons: ["作成", "キャンセル"],
-    defaultId: 0,
-    cancelId: 1,
-    message: `${path.basename(newPath)} は存在しません。作成しますか？`
-  });
-    if (response === 0) {
-      console.log("ファイルの作成を行う直前です")
-      //fs.writeFileSync(newPath, ""); // 空ファイル作成
-      //event.sender.send("open-file", newPath);
-    }
-
-});
-
 app.setName('bextEditor');
 
 //引き数を使った起動への対応
@@ -936,40 +877,6 @@ function linkOpenAndLoadFile(event, filePath) {
       dialog.showErrorBox("読み込みエラー", `ファイルを開けませんでした: ${filePath}`);
       return Promise.reject(err);
     });
-}
-
-//イベントを発生させたウィンドウの中身をファイル内容で上書きする
-function linkOpenAndLoadFile_old(event,filePath) {
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    event.sender.send("load-file", { filePath: filePath, content });
-    const startWindow = BrowserWindow.fromWebContents(event.sender)
-    startWindow.currentFilePath = filePath;
-    console.log(startWindow.currentFilePath)
-    //新しいウォッチャーを登録するよ
-    if (startWindow.currentWatcher){
-      console.log("古いウォッチャーを解除します")
-      startWindow.currentWatcher.close()
-    }
-    console.log("ウォッチャーを再設定します")
-
-    startWindow.currentWatcher = chokidar.watch(filePath, {
-      usePolling: false,
-      ignoreInitial: true,
-      awaitWriteFinish: {
-        stabilityThreshold: 300,
-        pollInterval: 100
-      }
-    });
-    startWindow.currentWatcher.on('change', () => {
-      const newContent = fs.readFileSync(filePath, 'utf-8');
-      startWindow.webContents.send('file-updated', {filePath,newContent});
-    });
-
-
-  } catch (err) {
-    dialog.showErrorBox("読み込みエラー", `ファイルを開けませんでした: ${filePath}`);
-  }
 }
 
 
