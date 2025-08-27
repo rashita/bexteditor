@@ -258,20 +258,6 @@ ipcMain.on("open-link", async (event, linkText, currentFilePath) => {
   //処理を変えたい
   //フルパスでファイル名がやってくるようにすればいいのではないか
 
-  // if (path.isAbsolute(linkText)) {
-  //   try {
-  //     console.log("フルパスで開きます")
-  //     await linkOpenAndLoadFile(event, linkText); // Promise 対応済み
-  //     event.sender.send("open-link-done");       // 読み込み完了を通知
-  //   } catch (err) {
-  //     console.error(err);
-  //     // 必要ならエラー通知
-  //     // event.sender.send("open-link-error", err);
-  //   }
-  //   return
-  // }
-
-  const fileName = path.basename(currentFilePath); // 例: 20250725.md
   const dirName = path.dirname(currentFilePath);   // 例: Dropbox/logtext
   const NewFileName = linkText + ".md"
   const newPath = path.isAbsolute(linkText)? linkText :path.resolve(dirName, linkText + ".md");
