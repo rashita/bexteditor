@@ -695,7 +695,32 @@ function shiftDateInFilename(filePath, offsetDays) {
   return path.join(dirName, newFileName); 
 }
 
-//ファイル左右移動のためのイベントリスナ
+//連番ファイルに強制的に新しいファイルを割り込ませる
+ipcMain.on("insert-file", async (event, currentPath,offsetDays) => {
+    console.log(currentPath,offsetDays)
+    const insertPagePath = shiftpagination(currentPath,offsetDays)
+    if (!insertPagePath) return
+    console.log(insertPagePath + "の移動を開始します")
+    const { response } = await dialog.showMessageBox({
+      type: "question",
+      buttons: ["作成", "キャンセル"],
+      defaultId: 0,
+      cancelId: 1,
+      message: `${path.basename(newPath)} ファイルを挿入しますか？？`
+    });
+    if (response === 0) {
+      try {
+        insertNumberedFileByFullPath(insertPagePath)
+        //openFileFromPath(newPath);
+      } catch (err) {
+        console.error("ファイル作成またはオープンに失敗:", err);
+      }
+
+    }
+    
+
+})
+
 ipcMain.on("shift-file", async (event, currentPath,offsetDays) => {
 
   const newPath = (() => {
@@ -1044,3 +1069,96 @@ ipcMain.on('selected-text', (event, text) => {
   console.log(text)
   createWindow(null,text);
 });
+
+
+/**
+ * フルパス1本から連番ファイルを挿入
+ * @param {string} newFilePath 新規作成したいフルパス (例: /path/to/card04.md)
+ */
+function insertNumberedFileByFullPath(newFilePath) {
+  const dirPath = path.dirname(newFilePath);
+  const fileName = path.basename(newFilePath); // 例: card04.md
+
+  // 接頭辞と番号を抽出
+  const match = fileName.match(/^(\D+)(\d+)\.md$/);
+  if (!match) throw new Error("ファイル名が正しい形式ではありません");
+
+  const prefix = match[1];                 // "card"
+  const insertIndex = parseInt(match[2], 10); // 4
+  const pad = match[2].length;             // "04" の長さ → 2
+
+  // 対象フォルダ内の同プレフィックスのファイルを取得
+  const regex = new RegExp(`^${prefix}(\\d+)\\.md$`);
+  const files = fs.readdirSync(dirPath)
+    .filter(f => regex.test(f))
+    .sort((a, b) => {
+      const na = parseInt(a.match(regex)[1], 10);
+      const nb = parseInt(b.match(regex)[1], 10);
+      return na - nb;
+    });
+
+  // 最大番号
+  const maxIndex = files.length > 0
+    ? parseInt(files[files.length - 1].match(regex)[1], 10)
+    : 0;
+
+  // 後ろから順にリネーム
+  for (let i = maxIndex; i >= insertIndex; i--) {
+    const oldName = `${prefix}${String(i).padStart(pad, "0")}.md`;
+    const newName = `${prefix}${String(i + 1).padStart(pad, "0")}.md`;
+    const oldPath = path.join(dirPath, oldName);
+    const newPath = path.join(dirPath, newName);
+    if (fs.existsSync(oldPath)) {
+      fs.renameSync(oldPath, newPath);
+    }
+  }
+
+  // 新規ファイル作成
+  if (!fs.existsSync(newFilePath)) {
+    fs.writeFileSync(newFilePath, ""); // 空ファイル作成
+  }
+}
+
+/**
+ * 連番ファイルを削除し、後続番号を前に詰める
+ * @param {string} filePath 削除するファイルのフルパス (例: /path/to/card04.md)
+ */
+function deleteAndShiftNumberedFile(filePath) {
+  const dirPath = path.dirname(filePath);
+  const fileName = path.basename(filePath);
+
+  // prefix と番号を抽出
+  const match = fileName.match(/^(\D+)(\d+)\.md$/);
+  if (!match) throw new Error("ファイル名が正しい形式ではありません");
+
+  const prefix = match[1];
+  const deleteIndex = parseInt(match[2], 10);
+  const pad = match[2].length;
+
+  // 対象フォルダ内の同プレフィックスのファイルを取得
+  const regex = new RegExp(`^${prefix}(\\d+)\\.md$`);
+  const files = fs.readdirSync(dirPath)
+    .filter(f => regex.test(f))
+    .sort((a, b) => {
+      const na = parseInt(a.match(regex)[1], 10);
+      const nb = parseInt(b.match(regex)[1], 10);
+      return na - nb;
+    });
+
+  // まず削除
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+
+  // 削除した番号より後ろのファイルを前にずらす
+  for (let i = deleteIndex + 1; i <= files.length - 1; i++) {
+    const oldName = `${prefix}${String(i).padStart(pad, "0")}.md`;
+    const newName = `${prefix}${String(i - 1).padStart(pad, "0")}.md`;
+    const oldPath = path.join(dirPath, oldName);
+    const newPath = path.join(dirPath, newName);
+
+    if (fs.existsSync(oldPath)) {
+      fs.renameSync(oldPath, newPath);
+    }
+  }
+}

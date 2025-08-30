@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     });
   },
   shiftFile: (filePath,offsetDays) => ipcRenderer.send('shift-file', filePath,offsetDays),
+  insertFile: (filePath,offsetDays) => ipcRenderer.send('insert-file', filePath,offsetDays),
   levelFile: (filePath,isUp) => ipcRenderer.send('level-file', filePath,isUp),
   readMarkdownFile: (filename) => ipcRenderer.invoke("read-markdown-file", filename),
   openFile: (filePath,fullPath) => ipcRenderer.send('request-open-file', filePath,fullPath),

@@ -19,6 +19,8 @@ import NavigationHistory from './lib/NavigationHistory.js';
 
 import dayjs from 'dayjs';//日付の操作用
 
+console.log("%cBextEditor Developer Console", "color:#7f6df2; font-size:40px; font-weight:bold;");
+
 // 履歴インスタンスを作る（このウィンドウ専用）
 const NaviHistory = new NavigationHistory();
 
@@ -304,6 +306,17 @@ export const hashtagSpanTheme = EditorView.baseTheme({
   }
 });
 
+// （必要ならより正確な文字数にするヘルパー）
+// function countChars(str) {
+//   // Intl.Segmenter が使える環境なら結合文字も1文字として数えられる
+//   if (typeof Intl !== "undefined" && Intl.Segmenter) {
+//     const seg = new Intl.Segmenter("ja", { granularity: "grapheme" });
+//     let n = 0; for (const _ of seg.segment(str)) n++; return n;
+//   }
+//   // フォールバック（サロゲートペア対応/結合文字は分割）
+//   return Array.from(str).length;
+// }
+
 //文字数カウント用のプラグイン
 const charCountPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
@@ -324,7 +337,34 @@ const charCountPlugin = ViewPlugin.fromClass(class {
   }
 
   update(update) {
-    this.dom.textContent = `文字数: ${update.state.doc.length}`;
+    if (update.docChanged || update.selectionSet) {
+      this.updateDisplay(update.view);
+    }
+  }
+
+  updateDisplay(view) {
+    if (!this.dom) return;
+
+    const sel = view.state.selection;
+    const hasSelection = sel.ranges.some(r => !r.empty);
+
+    if (hasSelection) {
+      // 複数レンジ選択にも対応して合計を表示
+      let total = 0;
+      for (const r of sel.ranges) {
+        if (!r.empty) {
+          const piece = view.state.doc.sliceString(r.from, r.to);
+          // total += countChars(piece); // より正確に数えたい場合はこちら
+          total += piece.length;         // 高速（UTF-16単位）
+        }
+      }
+      this.dom.textContent = `文字数: ${total}（選択中）`;
+    } else {
+      // 全文
+      // const all = countChars(view.state.doc.toString()); // 正確版
+      const all = view.state.doc.length;                   // 高速版
+      this.dom.textContent = `文字数: ${all}`;
+    }
   }
 
   destroy() {
@@ -622,32 +662,20 @@ const customKeymap = keymap.of([
       return true;
     }
   },
-  // {
-  //   key: "Enter",
-  //   run: ({ state, dispatch }) => {
-  //     let { from } = state.selection.main;
-  //     let line = state.doc.lineAt(from);
+    {
+    key: "Mod-Shift-Alt-]", //次のカードを強制作成する
+    preventDefault: true,
+    run: async () => {
+      if (!window.currentFilePath) return
 
-  //     // 行全体が全角スペースのみの場合
-  //     if (/^[\u3000]+$/.test(line.text)) {
-  //       dispatch(
-  //         state.update({
-  //           changes: { from: line.from, to: line.to, insert: "" },
-  //           selection: { anchor: line.from } // 行頭にカーソルを置く
-  //         })
-  //       );
-  //       return true;
-  //     }
-
-  //     if (/^[\u3000]/.test(line.text)) {
-  //       let m = line.text.match(/^([ \u3000]+)/); // 行頭スペース(全角含む)検出
-  //       let insert = "\n" + (m ? m[1] : "");
-  //       dispatch(state.update(state.replaceSelection(insert)));
-  //       return tru;
-  //     }
-  // return false; 
-  //   }
-  // },
+      if (isDirty) {
+        await saveCurrentFile();  // 自動で保存
+      }
+      window.electronAPI.insertFile(currentFilePath,+1);
+ 
+      return true;
+    }
+  },
   {
     key: "Mod-Enter", // Cmd+Enter または Ctrl+Enter
     run: (view) => {
@@ -678,8 +706,9 @@ const customKeymap = keymap.of([
   {//タスクのトグル
     key: "Mod-l",
     run: (view) => toggleTaskAt(view, view.state.selection.main.from)
-  },
-  {key: "Backspace", run: deleteIndentation }
+  }
+  // ,
+  // {key: "Backspace", run: deleteIndentation }
 ]);
 
 // カスタムのセット
