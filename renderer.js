@@ -14,6 +14,7 @@ import { syntaxTree , indentUnit,foldService} from "@codemirror/language";
 import { foldCode, unfoldCode,foldEffect, unfoldEffect,foldable } from "@codemirror/language"; //下位項目の開閉
 import { markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data"; // GFMを含む各種定義
+//セルフ拡張
 import { editingKeymap } from './lib/keybindings.js';
 import NavigationHistory from './lib/NavigationHistory.js';
 
@@ -71,6 +72,73 @@ async function goForward(view) {
 const isAUtoSave = false //自動保存機能のトグル
 
 const fontCompartment = new Compartment();//
+
+// Markdownリンクを <a> に変換するプラグイン
+const linkWidgetPlugin = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.decorations = this.buildDecorations(view)
+  }
+
+  update(update) {
+    if (update.docChanged || update.viewportChanged || update.selectionSet) {
+      this.decorations = this.buildDecorations(update.view)
+    }
+  }
+
+  buildDecorations(view) {
+    const builder = new RangeSetBuilder()
+    const selections = view.state.selection.ranges
+    for (let { from, to } of view.visibleRanges) {
+      const text = view.state.doc.sliceString(from, to)
+      const regex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g
+      let match
+      while ((match = regex.exec(text)) !== null) {
+        const start = from + match.index
+        const end = start + match[0].length
+        const url = match[2]
+        const linkText = match[1]
+
+        // カーソルが範囲内にあれば Decoration を付けない
+        const cursorInside = selections.some(sel => sel.from <= end && sel.to >= start)
+        if (cursorInside) continue
+
+        // Decoration.widget で <a> ノードを差し込む
+        const widget = Decoration.widget({
+          widget: {
+            toDOM() {
+              const a = document.createElement("a")
+              a.textContent = linkText
+              a.href = url
+              a.target = "_blank"
+              a.style.color = "blue"
+              a.style.textDecoration = "underline"
+              a.style.cursor = "pointer"
+              // a.addEventListener("click", (e) => {
+              //   e.preventDefault()
+              //   // Electron 環境なら shell.openExternal を呼ぶ
+              //   shell.openExternal(url)
+              // })
+              return a
+            },
+            ignoreEvent() { return false },
+            destroy() {
+              // Widget が削除されるときに呼ばれる。空でOK
+            }
+          },
+          side: 1
+        })
+
+        // 元のテキストを置き換えるように widget を配置
+        builder.add(start, end, widget)
+      }
+    }
+    return builder.finish()
+  }
+}, {
+  decorations: v => v.decorations
+})
+
+
 
 //タイマー用のプラグイン
 export const timerPlugin = ViewPlugin.fromClass(class {
@@ -797,6 +865,7 @@ function initializeEditor(initialText="") {
       ...mySetup,
       //markdown(),
       markdownWithGFM,
+      linkWidgetPlugin,
       updateListener,
       syntaxHighlighting(myHighlightStyle),
       EditorView.lineWrapping,
