@@ -1098,7 +1098,10 @@ function toggleTaskAt(view, from) {
   const text = line.text;
 
   const match = text.match(/^(\s*)[-*]\s+\[( |x|-)\]/i);
-  if (!match) return false;
+  if (!match) {
+      insertTask(view);
+      return false
+    };
 
   const indent = match[1].length;
   const current = match[2].toLowerCase();
@@ -1118,6 +1121,16 @@ function toggleTaskAt(view, from) {
   updateParentTasks(view, line.number, indent);
 
   return true;
+}
+
+function insertTask(view){
+  const pos = view.state.selection.main.from
+  const line = view.state.doc.lineAt(pos)
+  const task = "- [ ] "
+  view.dispatch({
+    changes: { from: line.from, insert: task }
+  });
+
 }
 
 function updateParentTasks(view, lineNumber, childIndent) {
