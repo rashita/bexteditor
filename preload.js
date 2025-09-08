@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openLink: (linkText, currentFilePath) => {
     return new Promise((resolve, reject) => {
       // メインプロセスから完了通知が来たら resolve
-      ipcRenderer.once("open-link-done", () => resolve());
+      ipcRenderer.once("open-link-done", () => resolve(true));
       // メインプロセスにリンクを送信
       ipcRenderer.send("open-link", linkText, currentFilePath);
       // エラー通知を使いたい場合は reject を追加できる

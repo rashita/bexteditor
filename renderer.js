@@ -22,6 +22,7 @@ import dayjs from 'dayjs';//日付の操作用
 
 console.log("%cBextEditor Developer Console", "color:#7f6df2; font-size:40px; font-weight:bold;");
 
+
 // 履歴インスタンスを作る（このウィンドウ専用）
 const NaviHistory = new NavigationHistory();
 
@@ -73,6 +74,36 @@ const isAUtoSave = false //自動保存機能のトグル
 
 const fontCompartment = new Compartment();//
 
+class LinkWidget extends WidgetType {
+  constructor(linkText, url) {
+    super()
+    this.linkText = linkText
+    this.url = url
+  }
+
+  eq(other) {
+    return this.linkText === other.linkText && this.url === other.url
+  }
+
+  toDOM() {
+    const a = document.createElement("a")
+    a.textContent = this.linkText
+    a.href = this.url
+    a.target = "_blank"
+    a.style.color = "blue"
+    a.style.textDecoration = "underline"
+    a.style.cursor = "pointer"
+    // a.addEventListener("click", (e) => {
+    //   e.preventDefault()
+    //   shell.openExternal(this.url)
+    // })
+    return a
+  }
+
+  ignoreEvent() { return false }
+  destroy() { /* Widget が削除されるときに呼ばれる */ }
+}
+
 // Markdownリンクを <a> に変換するプラグイン
 const linkWidgetPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
@@ -91,9 +122,18 @@ const linkWidgetPlugin = ViewPlugin.fromClass(class {
     for (let { from, to } of view.visibleRanges) {
       const text = view.state.doc.sliceString(from, to)
       const regex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g
+      const imgRegex = /!([^\]]+)\]\((https?:\/\/[^\)]+)\)/g 
+
       let match
       while ((match = regex.exec(text)) !== null) {
+
+        const isImage = text[match.index + 1] === "!"
+        console.log(match.index)
+        console.log(text[match.index+ 1])
+        if (isImage) continue
+
         const start = from + match.index
+
         const end = start + match[0].length
         const url = match[2]
         const linkText = match[1]
@@ -103,31 +143,14 @@ const linkWidgetPlugin = ViewPlugin.fromClass(class {
         if (cursorInside) continue
 
         // Decoration.widget で <a> ノードを差し込む
+         // WidgetType を継承したクラスで <a> を生成
+
         const widget = Decoration.widget({
-          widget: {
-            toDOM() {
-              const a = document.createElement("a")
-              a.textContent = linkText
-              a.href = url
-              a.target = "_blank"
-              a.style.color = "blue"
-              a.style.textDecoration = "underline"
-              a.style.cursor = "pointer"
-              // a.addEventListener("click", (e) => {
-              //   e.preventDefault()
-              //   // Electron 環境なら shell.openExternal を呼ぶ
-              //   shell.openExternal(url)
-              // })
-              return a
-            },
-            ignoreEvent() { return false },
-            destroy() {
-              // Widget が削除されるときに呼ばれる。空でOK
-            }
-          },
+          widget: new LinkWidget(linkText, url),
           side: 1
         })
-
+        
+       
         // 元のテキストを置き換えるように widget を配置
         builder.add(start, end, widget)
       }
@@ -137,7 +160,6 @@ const linkWidgetPlugin = ViewPlugin.fromClass(class {
 }, {
   decorations: v => v.decorations
 })
-
 
 
 //タイマー用のプラグイン
@@ -545,10 +567,17 @@ class InternalLinkWidget extends WidgetType{
         window.electronAPI.openFile(this.linkText,window.currentFilePath)
         // 新規ウィンドウなど
       } else {
-        //ここにリンクの読み込みを追加
-        NaviHistory.visit(currentEntry());
-        await window.electronAPI.openLink(this.linkText,window.currentFilePath)
-        //hisutoryに追加
+        
+        const entry = currentEntry(); // 現在の状態を取る
+        const ok = await window.electronAPI.openLink(this.linkText,window.currentFilePath)
+        console.log(ok)
+        if (ok) {
+          NaviHistory.visit(entry); //hisutoryに追加
+        } else {
+          console.log("ヒストリーに追加していません")
+          // 読み込み失敗 → 何も追加しない
+        }
+        
         
         console.log("ヒストリーに追加しました" + currentEntry())
         //今開いているウィンドウを書き換えす
@@ -678,7 +707,15 @@ const customKeymap = keymap.of([
         await saveCurrentFile();  // 自動で保存
       }
       console.log("Mod-Alt-@です")
-      window.electronAPI.levelFile(currentFilePath,true);
+      const entry = currentEntry(); // 現在の状態を取る
+      const ok = window.electronAPI.levelFile(currentFilePath,true);
+      if (ok) {
+          NaviHistory.visit(entry); //hisutoryに追加
+      } else {
+          // 読み込み失敗 → 何も追加しない
+      }
+
+
       return true;
     }
   },
@@ -713,7 +750,13 @@ const customKeymap = keymap.of([
       if (isDirty) {
         await saveCurrentFile();  // 自動で保存
       }
-      window.electronAPI.shiftFile(currentFilePath,-1);
+      const entry = currentEntry(); // 現在の状態を取る
+      const ok = window.electronAPI.shiftFile(currentFilePath,-1);
+      if (ok) {
+          NaviHistory.visit(entry); //hisutoryに追加
+      } else {
+          // 読み込み失敗 → 何も追加しない
+      }
       return true;
     }
   },
@@ -865,12 +908,12 @@ function initializeEditor(initialText="") {
       ...mySetup,
       //markdown(),
       markdownWithGFM,
-      linkWidgetPlugin,
       updateListener,
       syntaxHighlighting(myHighlightStyle),
       EditorView.lineWrapping,
       checklistPlugin,
       imagePlugin,
+      linkWidgetPlugin,
       internalLinkPlugin,
       timerPlugin,
       charCountPlugin,

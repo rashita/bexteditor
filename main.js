@@ -139,6 +139,7 @@ function createWindow(parent = null,initialText="") {
 
 // ファイルを新しいウィンドウで開く関数
 async function openFileInNewWindow() {
+  console.log("ダイアログからファイルを開きます")
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openFile'],
     filters: [
@@ -254,7 +255,7 @@ ipcMain.on('update-title', (event, { filePath, isDirty }) => {
 
 //内部リンクの呼び出し（同期処理）
 ipcMain.on("open-link", async (event, linkText, currentFilePath) => {
-  if (!currentFilePath) return;
+  if (!currentFilePath) return false;
   //処理を変えたい
   //フルパスでファイル名がやってくるようにすればいいのではないか
 
@@ -274,7 +275,7 @@ ipcMain.on("open-link", async (event, linkText, currentFilePath) => {
       // 必要ならエラー通知
       // event.sender.send("open-link-error", err);
       }
-    return
+    return true;
   } 
   console.log(newPath + "は存在しないので子フォルダを探します");
 
@@ -291,7 +292,7 @@ ipcMain.on("open-link", async (event, linkText, currentFilePath) => {
           // 必要ならエラー通知
           // event.sender.send("open-link-error", err);
           }
-        return
+        return true;
       }
     }
   }
@@ -304,8 +305,10 @@ ipcMain.on("open-link", async (event, linkText, currentFilePath) => {
   });
     if (response === 0) {
       console.log("ファイルの作成を行う直前です")
-      //fs.writeFileSync(newPath, ""); // 空ファイル作成
+      fs.writeFileSync(newPath, ""); // 空ファイル作成
+      openFileFromPath(newPath)
       //event.sender.send("open-file", newPath);
+      return false;
     }
 
 });
@@ -771,6 +774,7 @@ ipcMain.on("level-file", async (event, currentPath,isUp) => {
     const newPath = levelDateInFilename(currentPath);
     if (newPath) {
       linkOpenAndLoadFile(event,newPath)
+      return true;
     }
   }else{
     const newPath = getSnakememo(currentPath)
@@ -779,10 +783,11 @@ ipcMain.on("level-file", async (event, currentPath,isUp) => {
        if (win.currentFilePath === newPath) {
         console.log("すでにそのファイルは開かれています")
         win.close()
-        return
+        return false;
         }
       }
       openFileFromPath(newPath,parentWindow)//開いていなければ新しく開く
+      return true;
     }else{//ファイルが存在していない
       const { response } = await dialog.showMessageBox({
         type: "question",
