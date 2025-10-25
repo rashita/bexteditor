@@ -68,11 +68,11 @@ function createWindow(parent = null,initialText="") {
   const [parentX, parentY] = parent
   ? [parent.getBounds().x + parent.getBounds().width, parent.getBounds().y] // 親の横にぴたりとつける
   : [null, null]; // fallback
-  const toggleWidth = parent ? 400:800 //子ウィンドウなら半分に
+  const toggleWidth = 800 //子ウィンドウなら半分に
   const win = new BrowserWindow({
     width: toggleWidth,
     height: 600,
-    parent:parent,
+    //parent:parent, //いったんペアレントは消す
     x: parentX ,  // 親の右下に少しずらす
     y: parentY ,
     currentFont : 'sans-serif',
@@ -93,7 +93,6 @@ function createWindow(parent = null,initialText="") {
 
 
   win.on('close', (event) => {
-    return //すぐに閉じる
     event.preventDefault(); // ウィンドウが閉じるのを一旦キャンセル
 
     // レンダラープロセスに問い合わせて、ファイルのダーティ状態を確認
@@ -521,8 +520,9 @@ function buildMenu() {
                 if(!browserWindow)return
                 browserWindow.currentFont = 'serif';
                 browserWindow.webContents.send('change-font', {
-                  size: '18px',
-                  family: '"Noto Serif JP", "Hiragino Mincho ProN", "Hiragino Mincho", serif'
+                  size: '22px',
+                  family: '"Noto Serif JP", "Hiragino Mincho ProN", "Hiragino Mincho", serif',
+                  padding:"30px"
                 });
               }
             }

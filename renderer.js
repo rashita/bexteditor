@@ -1532,19 +1532,27 @@ window.electronAPI.onFileUpdated(({ filePath, newContent }) => {
 });
 
 // フォントの変更
-function changeFont(size,family) {
+function changeFont(size,family,padding=undefined) {
   console.log(family + "に変更します")
   editorView.dispatch({
     effects: fontCompartment.reconfigure(EditorView.theme({
-      ".cm-content": { fontFamily: family }
+      ".cm-content": { 
+        fontFamily: family ,
+        fontSize: size,
+        paddingLeft: padding,
+        paddingRight: padding
+      },
+      ".cm-line": {
+        fontSize: size // 行の高さ調整にも有効
+      }
     }))
   });
 }
 
 // main.js からの通知を受け取る
-window.electronAPI.onChangeFont(({ size, family }) => {
+window.electronAPI.onChangeFont(({ size, family,padding }) => {
    console.log("call writing mode")
-  changeFont(size, family);
+  changeFont(size, family,padding);
 });
 
 //今日の日付を返す ex. 2025-08-09
