@@ -816,7 +816,8 @@ const customKeymap = keymap.of([
   },
   {//タスクのトグル
     key: "Mod-l",
-    run: (view) => toggleTaskAt(view, view.state.selection.main.from)
+    //run: (view) => toggleTaskAt(view, view.state.selection.main.from)
+    run: (view) => toggleTasksForSelection(view)
   }
   // ,
   // {key: "Backspace", run: deleteIndentation }
@@ -1135,45 +1136,77 @@ const checklistPlugin = ViewPlugin.fromClass(class {
 });
 
 
-// 共通のトグル処理
-function toggleTaskAt(view, from) {
-  const line = view.state.doc.lineAt(from);
-  const text = line.text;
+function toggleTasksForSelection(view) {
+  const linesDone = new Set();
+  const affectedLines = [];
 
-  const match = text.match(/^(\s*)[-*]\s+\[( |x|-)\]/i);
-  if (!match) {
-      insertTask(view);
-      return false
-    };
+  const result = view.state.changeByRange(range => {
+    const changes = [];
 
-  const indent = match[1].length;
-  const current = match[2].toLowerCase();
+    const start = view.state.doc.lineAt(range.from).number;
+    const end   = view.state.doc.lineAt(range.to).number;
 
-  let next;
-  if (current === " ") next = "[x]";
-  else next = "[ ]";
+    for (let ln = start; ln <= end; ln++) {
+      if (linesDone.has(ln)) continue;
+      linesDone.add(ln);
 
-  const replaceFrom = line.from + indent + 2;
-  const replaceTo = replaceFrom + 3;
+      const line = view.state.doc.line(ln);
+      const change = toggleTaskLine(line);
+      if (change) {
+        changes.push(change);
+        affectedLines.push(ln);
+      }
+    }
 
-  view.dispatch({
-    changes: { from: replaceFrom, to: replaceTo, insert: next }
+    return changes.length
+      ? { changes, range }
+      : { range };
   });
 
-  // 子の状態を親に反映
+  view.dispatch(result);
+}
+
+function toggleTaskLine(line) {
+  const text = line.text;
+
+  const m = text.match(/^(\s*)([-*])(?:\s+(\[(?: |x|-)\]))?\s*(.*)$/);
+  if (!m) {
+    // リストでもタスクでもない → prepend だけする
+    const newText = `- [ ] ${text}`;
+    return { from: line.from, to: line.to, insert: newText };
+  }
+
+  const indent = m[1];
+  const marker = m[2];
+  const checkbox = m[3];
+  const body = m[4];
+
+  // すでにタスク → トグル
+  if (checkbox) {
+    const newCheckbox = checkbox === "[ ]" ? "[x]" : "[ ]";
+    const newText = `${indent}${marker} ${newCheckbox} ${body}`;
+    return { from: line.from, to: line.to, insert: newText };
+  }
+
+  // リストだがタスクでない → タスク化
+  const newText = `${indent}${marker} [ ] ${body}`;
+  return { from: line.from, to: line.to, insert: newText };
+}
+
+function toggleTaskAt(view, from) {
+  const line = view.state.doc.lineAt(from);
+  const change = toggleTaskLine(line);
+
+  if (!change) return false;
+
+  view.dispatch({
+    changes: change
+  });
+
+  const indent = line.text.match(/^(\s*)/)[1].length;
   updateParentTasks(view, line.number, indent);
 
   return true;
-}
-
-function insertTask(view){
-  const pos = view.state.selection.main.from
-  const line = view.state.doc.lineAt(pos)
-  const task = "- [ ] "
-  view.dispatch({
-    changes: { from: line.from, insert: task }
-  });
-
 }
 
 function updateParentTasks(view, lineNumber, childIndent) {
@@ -1206,6 +1239,8 @@ function updateParentTasks(view, lineNumber, childIndent) {
     currentLineNum--;
   }
 }
+
+
 
 function areAllChildrenChecked(view, parentLineNum, parentIndent) {
   let checked = true;
