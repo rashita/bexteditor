@@ -121,6 +121,8 @@ const linkWidgetPlugin = ViewPlugin.fromClass(class {
     const selections = view.state.selection.ranges
     for (let { from, to } of view.visibleRanges) {
       const text = view.state.doc.sliceString(from, to)
+      //const regex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g
+      //const regex = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g
       const regex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g
       const imgRegex = /!([^\]]+)\]\((https?:\/\/[^\)]+)\)/g 
 
