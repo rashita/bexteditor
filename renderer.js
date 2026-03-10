@@ -123,7 +123,7 @@ const linkWidgetPlugin = ViewPlugin.fromClass(class {
       const text = view.state.doc.sliceString(from, to)
       //const regex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g
       //const regex = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g
-      const regex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g
+      const regex = /\[([^\]]+)\]\((https?:\/\/\S+?)\)(?=[\s\][]|$)/g
       const imgRegex = /!([^\]]+)\]\((https?:\/\/[^\)]+)\)/g 
 
       let match
