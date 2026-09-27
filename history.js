@@ -30,7 +30,7 @@ function saveHistory(history) {
   fs.writeFileSync(historyFilePath, JSON.stringify(history, null, 2), 'utf-8');
 }
 
-function addToHistory(filePath, title = '') {
+function addToHistory(filePath, title = '', type = 'file') {
   // ファイル名が 8桁の数字.md ならヒストリーには加えない
   if (/\d{8}\.md$/.test(filePath)) return;
   // ファイル名が 8桁の数字.md ならヒストリーには加えない
@@ -38,14 +38,27 @@ function addToHistory(filePath, title = '') {
   const history = loadHistory();
   const now = new Date().toISOString();
   const filtered = history.filter(entry => entry.filePath !== filePath);
-  const newEntry = { filePath, openedAt: now, title };
-  const updated = [newEntry, ...filtered].slice(0, 30);
+  const newEntry = { filePath, openedAt: now, title, type };
+  const updated = [newEntry, ...filtered].slice(0, 50);
   saveHistory(updated);
 }
 
+/**
+ * history.json から指定パスのエントリを削除する
+ * @param {string} filePath  削除対象の filePath
+ */
+function removeFromHistory(filePath) {
+  const data = loadHistory();
+  const updated = data.filter(e => e.filePath !== filePath);
+  fs.writeFileSync(historyFilePath, JSON.stringify(updated, null, 2), 'utf-8');
+}
+
+// ---- module.exports をこちらに置き換え ----
+module.exports = { addToHistory, loadHistory, removeFromHistory };
 module.exports = {
   loadHistory,
   saveHistory,
   addToHistory,
+  removeFromHistory,
   historyFilePath // 必要なら参照用に
 };

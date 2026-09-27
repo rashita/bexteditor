@@ -1,6 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  getShowLineNumbers: () => ipcRenderer.invoke('get-show-line-numbers'),
+  onShowLineNumbersChanged: (callback) =>
+    ipcRenderer.on('show-line-numbers-changed', (_event, visible) => callback(visible)),
   saveFile: (data) => ipcRenderer.invoke('dialog:saveFile', data),
   onTriggerSaveFile: (callback) => ipcRenderer.on('trigger-save-file', callback),
   onBeforeClose: (callback) => ipcRenderer.on('before-close', callback),
@@ -31,12 +34,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onRequestSelectedText: (callback) => ipcRenderer.on('request-selected-text', callback),
   sendSelectedText: (text) => ipcRenderer.send('selected-text', text),
   onInitText: (callback) => ipcRenderer.on('init-text', (event, text) => callback(text)),
-  onToggleTimer: (callback) => ipcRenderer.on('toggle-timer', callback)
-});
-
-ipcRenderer.on('set-background', (_, imgUrl) => {
-  const imgElement = document.getElementById('bgimg');
-  if (imgElement) {
-    imgElement.src = `file://${imgUrl}`;
-  }
+  // Workspace用
+  onGetEditorState: (callback) =>
+    ipcRenderer.on('get-editor-state', (_e, data) => callback(data)),
+  sendEditorStateReply: (winId, state) =>
+    ipcRenderer.send(`editor-state-reply-${winId}`, state),
+  getRestoreState: (fullPath) =>
+    ipcRenderer.invoke('workspace:get-restore-state', fullPath),
+  listFiles: (folderPath, sortBy) =>
+    ipcRenderer.invoke('workspace:list-files', { folderPath, sortBy }),
+  getCurrentWorkspace: () =>
+    ipcRenderer.invoke('workspace:get-current'),
+  createFile: (folderPath, fileName) =>
+    ipcRenderer.invoke('workspace:create-file', { folderPath, fileName }),
+  renameFile: (oldPath, newName) =>
+    ipcRenderer.invoke('workspace:rename-file', { oldPath, newName }),
+  deleteFile: (filePath) =>
+    ipcRenderer.invoke('workspace:delete-file', { filePath }),
+  getQuickOpenItems: () =>
+  ipcRenderer.invoke('quick-open:get-items'),
+onShowQuickOpen: (callback) =>
+  ipcRenderer.on('show-quick-open', callback),
+openWorkspace: () =>
+  ipcRenderer.invoke('workspace:open'),
+restoreWorkspace: (workspace) =>
+  ipcRenderer.invoke('workspace:restore', workspace),
+openWorkspaceFromPath: (rootFolder) =>
+  ipcRenderer.invoke('workspace:open-from-path', rootFolder),
+openTerminal: (dirPath = null) =>
+  ipcRenderer.invoke('open-terminal', { dirPath }),
+// コマンドパレット
+getCommands: (workspaceRoot) => ipcRenderer.invoke('get-commands', workspaceRoot),
+runCommand:  (commandDef, context) => ipcRenderer.invoke('run-command', { commandDef, context }),
+removeHistoryItem: (filePath) =>
+  ipcRenderer.invoke('quick-open:remove-item', filePath),
+  
 });

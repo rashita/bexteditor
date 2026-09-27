@@ -4,17 +4,32 @@ const pfs = require('fs').promises;
 const os = require('os');
 const path = require('path');
 const log = require('electron-log')
+const { exec, spawn } = require('child_process');
 const { program } = require ("commander")
-const { addToHistory,loadHistory } = require('./history.js');
+const { addToHistory, loadHistory, removeFromHistory } = require('./history.js');
+const { registerWorkspaceHandlers } = require('./workspace');
 const chokidar = require('chokidar');
 console.log = (...args) => log.info(...args)
 console.error = (...args) => log.error(...args)
 console.warn = (...args) => log.warn(...args)
 
+//const envPath = path.join(app.getPath('userData'), '.env');
+
+const isDev = !app.isPackaged;
+const envPath = path.join(isDev ? __dirname : app.getPath('userData'), '.env');
+
 program
   .option("--allow-file-access-from-files")
   .option("--enable-avfoundation");
 
+  // --- ここでプロトコル登録 ---
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('bexteditor', process.execPath, [path.resolve(process.argv[1])])
+  }
+} else {
+  app.setAsDefaultProtocolClient('bexteditor')
+}
 
 function parseArguments(args) {
   program.parse(args, {from: "user"})
@@ -26,7 +41,6 @@ function parseArguments(args) {
 log.info('App is starting...')
 
 //テンプレート処理
-const isDev = !app.isPackaged;
 const tempBaseDir = isDev ? __dirname : app.getPath('userData');
 const templateJsonPath = path.join(tempBaseDir, 'template.json');
 
@@ -51,17 +65,72 @@ const templateMenuItem = {
   }
 };
 
+const isAppUrl = value => /^bext(?:-)?editor:\/\//i.test(value);
+const pendingUrls = process.argv.filter(isAppUrl);
+let urlHandlingReady = false;
+
+function focusEditor() {
+  const win = [...windows].find(win => win.isFocused()) || [...windows][0] || createWindow();
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function handleAppUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (!['bexteditor:', 'bext-editor:'].includes(parsed.protocol)) return;
+    const action = parsed.hostname;
+    const filePath = parsed.searchParams.get('path');
+    if (action === 'launch') {
+      focusEditor();
+    } else if (action === 'new') {
+      const content = parsed.searchParams.get('content') || '';
+      if (parsed.searchParams.has('path')) {
+        if (!filePath || !path.isAbsolute(filePath)) {
+          throw new Error('path にはファイルの絶対パスを指定してください。');
+        }
+        fs.writeFileSync(filePath, content, { encoding: 'utf8', flag: 'wx' });
+        openFileFromPath(filePath);
+      } else {
+        createWindow(null, content);
+      }
+    } else if (action === 'open') {
+      if (!filePath || !path.isAbsolute(filePath)) {
+        throw new Error('path にはファイルの絶対パスを指定してください。');
+      }
+      openFileFromPath(filePath);
+    } else {
+      throw new Error(`未対応のURL操作です: ${action}`);
+    }
+  } catch (error) {
+    console.error('URLの処理に失敗しました', error);
+    dialog.showErrorBox('URLの処理に失敗しました', error.message);
+  }
+}
+
+function receiveAppUrl(url) {
+  if (urlHandlingReady) handleAppUrl(url);
+  else pendingUrls.push(url);
+}
+
 let fileToOpen = null
 
 if (!process.defaultApp && process.argv.length >= 2) {
-  fileToOpen = process.argv[1];
+  fileToOpen = isAppUrl(process.argv[1]) ? null : process.argv[1];
 }
 
 
 const windows = new Set();
+let showLineNumbers = false;
+ipcMain.handle('get-show-line-numbers', () => showLineNumbers);
 const watcherMap = new Map(); // filePath → fs.FSWatcher
 //複数のウィンドウで同じファイルを開いたときに、このやり方はうまくいかない気がする
 //ウィンドウごとにwatcherを登録した方がよい
+
+let openWorkspace = null;
+let saveCurrentWorkspace = null;
+let getCurrentWorkspace = null; // ← ワークスペースのフォルダ参照用
 
 
 function createWindow(parent = null,initialText="") {
@@ -205,6 +274,7 @@ async function handleFileSave(event, { filePath, content }) {
   const win = BrowserWindow.fromWebContents(webContents)
 
 
+
   if (filePath) {
     fs.writeFileSync(filePath, content);
     app.addRecentDocument(filePath);
@@ -217,8 +287,11 @@ async function handleFileSave(event, { filePath, content }) {
       defaultName = firstLine.replace(/[/\\?%*:|"<>]/g, '') + '.md';
     }
 
+    const ws = getCurrentWorkspace?.();
+    const defaultDir = ws?.rootFolder ?? app.getPath('documents');
+
     const { canceled, filePath: newFilePath } = await dialog.showSaveDialog(win, {
-      defaultPath: defaultName,
+      defaultPath: path.join(defaultDir, defaultName),
       filters: [
         { name: 'Markdown', extensions: ['md'] },
         { name: 'Text Document', extensions: ['txt'] },
@@ -355,6 +428,7 @@ function openFileFromPath(filePath,parent=null) {
       console.error('Failed to read file', e);
     }
   });
+  return newWindow;
 }
 
 app.on('open-file', (event, filePath) => {
@@ -444,6 +518,13 @@ function buildMenu() {
           click: openFileInNewWindow
         },
         {
+          label: 'Quick Open',
+          accelerator: 'CmdOrCtrl+P',
+          click: (menuItem, browserWindow) => {
+            if (browserWindow) browserWindow.webContents.send('show-quick-open');
+          }
+        },
+        {
           label: 'Open Recent',
           role: 'recentDocuments',
           submenu: [
@@ -460,6 +541,21 @@ function buildMenu() {
             if (browserWindow) {
               browserWindow.webContents.send('trigger-save-file', { id: browserWindow.id });
             }
+          }
+        },
+        { type: 'separator' },
+          {
+            label: 'Open Workspace…',
+            accelerator: 'CmdOrCtrl+Shift+O',
+            click: async () => {
+              await openWorkspace();
+            }
+          },
+        {
+          label: 'Save Workspace',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: async () => {
+            if (saveCurrentWorkspace) await saveCurrentWorkspace();
           }
         },
         { type: 'separator' },
@@ -499,6 +595,17 @@ function buildMenu() {
     {
       label: 'View',
       submenu: [
+        {
+          label: '行番号を表示',
+          type: 'checkbox',
+          checked: showLineNumbers,
+          click: (menuItem) => {
+            showLineNumbers = menuItem.checked;
+            for (const win of windows) {
+              win.webContents.send('show-line-numbers-changed', showLineNumbers);
+            }
+          }
+        },
         { label:"Mode",
           submenu:[
             {label:'Jounal',
@@ -553,16 +660,23 @@ function buildMenu() {
     {
       label:'Tool',
       submenu: [
-        { label:'Timer',
-          type: 'checkbox',
-          accelerator: 'Cmd+Alt+T',
-          checked: false, // 初期状態
-          click: (menuItem, browserWindow) => {
-            if (browserWindow) {
-              browserWindow.webContents.send('toggle-timer');
-            }
+        {
+          label: 'ターミナルを開く',
+          accelerator: 'CmdOrCtrl+Shift+T',
+          click: () => {
+            const termApp = loadTerminalApp();
+            const ws = getCurrentWorkspace?.();
+            const dirPath = ws?.rootFolder ?? null;
+            openTerminal(dirPath, termApp);
           }
-        }
+        },
+        {
+          label: 'コマンドパレット',
+          accelerator: 'CmdOrCtrl+Shift+P',
+          click: (menuItem, browserWindow) => {
+            if (browserWindow) browserWindow.webContents.send('show-command-palette');
+          }
+        },
       ]
     },{
       role: "windowMenu", // macOS 標準の「ウィンドウ」メニューに統合される
@@ -585,7 +699,6 @@ function buildMenu() {
 
 app.whenReady().then(() => {
   console.log("when ready start");
-  buildMenu()
 
   ipcMain.handle('dialog:saveFile', handleFileSave);
 
@@ -597,11 +710,6 @@ app.whenReady().then(() => {
       return { success: false, error: e.message };
     }
   });
-  if (fileToOpen){
-    console.log("コマンドライン引き数があるよ")
-    openFileFromPath(fileToOpen)
-    return
-  }
 
 
 
@@ -619,28 +727,26 @@ app.whenReady().then(() => {
     }
   });
 
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
-    console.log("second-instance:初期")
-    console.log("commandLine" + commandLine)
-    openFileQueue.push(commandLine)
-  })
 
-   createWindow()
 
-   console.log(openFileQueue)
+  // ワークスペースのIPCハンドラを登録
+({ openWorkspace, saveCurrentWorkspace , getCurrentWorkspace } = registerWorkspaceHandlers({ 
+  windows, openFileFromPath, createWindow 
+}));
 
+  buildMenu()
+  urlHandlingReady = true;
+  if (fileToOpen) openFileFromPath(fileToOpen);
+  openFileQueue.splice(0).forEach(file => openFileFromPath(file));
+  const startupUrls = pendingUrls.splice(0);
+  startupUrls.forEach(handleAppUrl);
+  if (windows.size === 0) createWindow();
 
 });
 
-app.on("second-instance", (_e,argv) => {
-    // レンダラープロセスへファイルパスを送信
-    console.log("second-instance" +argv)
-    console.log("出力確認")
-    console.log(parseArguments(argv))
-    //files.forEach(openFileFromPath);
-    //openFileFromPath(parseArguments(argv))
-    //focusExistingWindow();
-  });
+app.on('second-instance', (_event, argv) => {
+  argv.filter(isAppUrl).forEach(receiveAppUrl);
+});
 
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
@@ -651,10 +757,9 @@ if (process.defaultApp) {
 }
 
 app.on('open-url', (event, url) => {
-  dialog.showErrorBox('Welcome Back', `You arrived from: ${url}`)
-  //You arrived from: bext-editor://
-  //ファイルのパスをすべて入れるのは無理がある
-})
+  event.preventDefault();
+  receiveAppUrl(url);
+});
 
 app.on('window-all-closed', () => {
   app.quit();
@@ -916,41 +1021,69 @@ ipcMain.handle("read-markdown-file", async (_, fileFullPath) => {
   // }
 
   return content
-  
-
 });
 
-ipcMain.on('request-open-file', (event, filePath,currentFilePath="") => {
-    const parentWindow = BrowserWindow.fromWebContents(event.sender)
+//最近開いたアイテムのクイックアクセス
+ipcMain.handle('quick-open:get-items', () => {
+  const history = loadHistory();
+  const currentPath = getCurrentWorkspace()?.rootFolder ?? null; // ← 追加
+  return history.map(e => ({
+    type: e.type ?? 'file',
+    path: e.filePath,
+    label: e.title || path.basename(e.filePath),
+    dir: e.type === 'workspace'
+      ? e.filePath
+      : path.dirname(e.filePath),
+    openedAt: e.openedAt,
+    isCurrent: e.type === 'workspace' && e.filePath === currentPath, // ← 追加
+  }));
+});
 
-  if (currentFilePath == ""){
+ipcMain.handle('quick-open:remove-item', (event, filePath) => {
+  try {
+    removeFromHistory(filePath);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.on('request-open-file', (event, filePath, currentFilePath="") => {
+  // currentFilePath がない場合（null / undefined / 空文字）→ 新規ウィンドウで開く
+  if (!currentFilePath) {
     openFileFromPath(expandPath(filePath));
-    return
+    return;
   }
 
-  const dirName = path.dirname(currentFilePath);   // 例: Dropbox/logtext
-  console.log(filePath)
-  const NewFileName = filePath + ".md"
+  // currentFilePath がある場合 → 同一ウィンドウで開く（linkOpenAndLoadFile を使用）
+  const dirName = path.dirname(currentFilePath);
+  console.log(filePath);
+
+  // フルパスで渡ってきた場合はそのまま使う
+  if (path.isAbsolute(filePath) && fs.existsSync(filePath)) {
+    console.log(filePath + "をフルパスで同一ウィンドウに読み込みます");
+    linkOpenAndLoadFile(event, filePath);
+    return;
+  }
+
+  const NewFileName = filePath + ".md";
   const newPath = path.join(dirName, NewFileName);
   console.log(newPath + "を内部リンクとして処理します");
   if (fs.existsSync(newPath)) {
-    // ファイルを開く
     console.log(newPath + "は存在しています");
-    openFileFromPath(newPath,parentWindow)
-  } else{
+    linkOpenAndLoadFile(event, newPath);
+  } else {
     console.log(newPath + "は存在しないので子フォルダを探します");
     const entries = fs.readdirSync(dirName, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory()) {
         const childIndex = path.join(dirName, entry.name, NewFileName);
         if (fs.existsSync(childIndex)) {
-          openFileFromPath(childIndex,parentWindow)
-          //ウォッチャーが存在するなら消す
+          linkOpenAndLoadFile(event, childIndex);
         }
       }
     }
   }
-  
 });
 
 //ファイルパスのユーザーホームの部分を~に変換
@@ -969,49 +1102,6 @@ function expandPath(p) {
     return path.join(os.homedir(), p.slice(2));
   }
   return p;
-}
-
-//タイマー用ウィンドウの作成
-function createTimerWindow(parent = null) {
-  console.log("create timer window")
-  const win = new BrowserWindow({
-    width: 500,
-    height: 600,
-    parent:parent,
-    x: 0 ,  // 親の右下に少しずらす
-    y: 0 ,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    }
-  });
-
-
-  //win.loadFile(path.join(__dirname, 'timer.html'));
-  win.loadFile(path.join(__dirname, 'timer.html'), { query: { v: Date.now() } });
-
-   // 絶対パスをCSS用に渡したい場合
-  const imgPath = path.join(__dirname, 'images', 'background.png');
-  const isDev = !app.isPackaged;
-  const historyFilePath = isDev
-    ? path.join(__dirname, 'build/bgimage001.jpg')
-    : path.join(app.getPath('userData'), 'bgimage001.jpg');
-  
-  win.webContents.on('did-finish-load', () => {
-    win.webContents.send('set-background', historyFilePath);
-  });
-
-  win.on('close', (event) => {
-
-  });
-
-  win.on('closed', () => {
-    windows.delete(win);
-  });
-
-  return win;
-
 }
 
 // IPCでキーを受け取って.mdファイル読み込み、内容を返す
@@ -1167,3 +1257,200 @@ function deleteAndShiftNumberedFile(filePath) {
     }
   }
 }
+
+
+function loadTerminalApp() {
+  try {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    const match = content.match(/TERMINAL_APP=(.+)/);
+    return match ? match[1].trim() : 'Terminal';
+  } catch {
+    return 'Terminal';
+  }
+}
+
+function saveTerminalApp(appName) {
+  let content = '';
+  try {
+    content = fs.readFileSync(envPath, 'utf-8');
+  } catch { }
+
+  if (content.includes('TERMINAL_APP=')) {
+    content = content.replace(/TERMINAL_APP=.+/, `TERMINAL_APP=${appName}`);
+  } else {
+    content += `\nTERMINAL_APP=${appName}`;
+  }
+
+  fs.writeFileSync(envPath, content.trim(), 'utf-8');
+}
+
+
+// ── ターミナル起動 ──────────────────────────────────────────
+
+/**
+ * ターミナルを開く
+ * @param {string|null} dirPath - 開くフォルダパス。null なら指定なし
+ * @param {string} app - ターミナルアプリ名（設定から渡す）
+ */
+function openTerminal(dirPath, app = 'Terminal') {
+  if (app === 'iTerm2') {
+    openIterm2(dirPath);
+  } else {
+    // Terminal.app / Warp / Ghostty など open -a で動くもの
+    const target = dirPath ? `"${dirPath}"` : '';
+    exec(`open -a "${app}" ${target}`, (err) => {
+      if (err) console.error('[openTerminal] error:', err.message);
+    });
+    // Ghosttyで新しいウィンドウとして開く場合は以下
+    //exec(`/Applications/Ghostty.app/Contents/MacOS/ghostty +new-window --working-directory="${dirPath}"`);
+  }
+}
+
+function openIterm2(dirPath) {
+  let script;
+  if (dirPath) {
+    // シングルクォート内でのエスケープ対策
+    const escaped = dirPath.replace(/'/g, "'\\''");
+    script = `
+      tell application "iTerm2"
+        create window with default profile
+        tell current session of current window
+          write text "cd '${escaped}'"
+        end tell
+      end tell
+    `;
+  } else {
+    script = `
+      tell application "iTerm2"
+        create window with default profile
+      end tell
+    `;
+  }
+  exec(`osascript -e '${script}'`, (err) => {
+    if (err) console.error('[openIterm2] error:', err.message);
+  });
+}
+
+// IPC ハンドラ登録
+ipcMain.handle('open-terminal', (event, { dirPath = null } = {}) => {
+  const termApp = loadTerminalApp();
+  openTerminal(dirPath, termApp);
+});
+
+ipcMain.handle('terminal-get-app', () => {
+  return loadTerminalApp();
+});
+
+ipcMain.handle('terminal-save-app', (event, appName) => {
+  try {
+    saveTerminalApp(appName);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// ── コマンドパレット ────────────────────────────────────────────
+// Phase 1: commands.json の読み込みとマージ
+
+/**
+ * グローバルおよびローカルの commands.json を読み込み、name をキーにマージして返す
+ * @param {string|null} workspaceRoot
+ * @returns {Promise<Array>}
+ */
+async function loadCommands(workspaceRoot) {
+  const globalPath = path.join(isDev ? __dirname : app.getPath('userData'), 'commands.json');
+  const localPath  = workspaceRoot
+    ? path.join(workspaceRoot, '.bext', 'commands.json')
+    : null;
+
+  async function readCommandsFile(filePath) {
+    try {
+      const raw = await pfs.readFile(filePath, 'utf-8');
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed.commands) ? parsed.commands : [];
+    } catch {
+      return [];
+    }
+  }
+
+  const globalCmds = (await readCommandsFile(globalPath)).map(cmd => ({ ...cmd, source: 'global' }));
+  const localCmds  = localPath
+    ? (await readCommandsFile(localPath)).map(cmd => ({ ...cmd, source: 'local' }))
+    : [];
+
+  // name をキーにマージ。ローカルが同名グローバルを上書き
+  const merged = new Map();
+  for (const cmd of globalCmds) merged.set(cmd.name, cmd);
+  for (const cmd of localCmds)  merged.set(cmd.name, cmd);
+
+  return Array.from(merged.values());
+}
+
+/** IPC: get-commands */
+ipcMain.handle('get-commands', async (event, workspaceRoot) => {
+  return await loadCommands(workspaceRoot ?? null);
+});
+
+// Phase 2: コマンド実行エンジン
+
+/**
+ * 文字列内のプレースホルダを展開する
+ */
+function expandPlaceholders(str, context) {
+  return str
+    .replace(/\{file\}/g,      context.file      ?? '')
+    .replace(/\{dir\}/g,       context.dir       ?? '')
+    .replace(/\{basename\}/g,  context.basename  ?? '')
+    .replace(/\{workspace\}/g, context.workspace ?? '');
+}
+
+/**
+ * コマンドを spawn で実行し結果を返す
+ */
+function runCommand(commandDef, context) {
+  const cmd  = expandPlaceholders(commandDef.command, context);
+  const args = (commandDef.args ?? []).map(a => expandPlaceholders(a, context));
+  const cwd  = expandPlaceholders(commandDef.cwd ?? '{dir}', context) || context.dir || undefined;
+
+  return new Promise((resolve) => {
+    const stderrChunks = [];
+    const stdoutChunks = []; 
+    let proc;
+    try {
+      proc = spawn(cmd, args, { cwd, shell: false });
+    } catch (e) {
+      return resolve({ success: false, exitCode: -1, stderr: e.message });
+    }
+
+    proc.stderr.on('data', (chunk) => stderrChunks.push(chunk.toString()));
+
+    proc.on('error', (err) => {
+      resolve({ success: false, exitCode: -1, stderr: err.message });
+    });
+
+    proc.stdout.on('data', (chunk) => stdoutChunks.push(chunk.toString()));
+
+    proc.on('close', (code) => {
+      const exitCode = code ?? -1;
+      // stderr の先頭5チャンク分のみ返す
+      //const stderr = stderrChunks.slice(0, 5).join('');
+      resolve({ 
+        success: exitCode === 0,
+        exitCode,
+        stdout: stdoutChunks.join(''),       // ← 追加
+        stderr: stderrChunks.slice(0, 5).join(''),
+      });
+    });
+  });
+}
+
+/** IPC: run-command */
+ipcMain.handle('run-command', async (event, { commandDef, context }) => {
+  try {
+    return await runCommand(commandDef, context);
+  } catch (e) {
+    return { success: false, exitCode: -1, stderr: e.message };
+  }
+});
+// ── コマンドパレット ここまで ───────────────────────────────────

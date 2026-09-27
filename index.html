@@ -20,6 +20,9 @@
         color: #276bf2;
         font-weight: bold;
       }
+      .cm-comment {
+        color: #999;
+      }
       .cm-strong{
           color: black; 
           font-weight: 700; 
@@ -144,29 +147,394 @@
         color: white;
       }
 
+  /* モーダルファイラー */
+  .filer-modal {
+    display: flex;
+    flex-direction: column;
+    width: 620px;
+    height: 520px;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .filer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px 6px;
+    border-bottom: 1px solid #444;
+    flex-shrink: 0;
+  }
+
+  .filer-breadcrumb {
+    font-size: 12px;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 420px;
+  }
+
+  .filer-meta {
+    font-size: 11px;
+    color: #777;
+    white-space: nowrap;
+  }
+
+  .filer-list {
+    flex: 1;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px 0;
+    list-style: none;
+  }
+
+  .filer-list li {
+    display: flex;
+    align-items: baseline;
+    padding: 4px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    gap: 8px;
+    line-height: 1.5;
+  }
+
+  .filer-list li:hover {
+    background-color: #2a2a2a;
+  }
+
+  .filer-list li.selected {
+    background-color: #3a3a3a;
+  }
+
+  .filer-list li.filer-up {
+    color: #888;
+    font-size: 12px;
+  }
+
+  .filer-list li.filer-separator {
+    padding: 0 14px;
+    pointer-events: none;
+    cursor: default;
+  }
+
+  .filer-list li.filer-separator::after {
+    content: '';
+    display: block;
+    border-top: 1px dashed #555;
+    margin: 2px 0;
+  }
+
+  .filer-list li.filer-folder .filer-name {
+    color: #aacbff;
+    font-weight: 500;
+  }
+
+  .filer-list li.filer-file .filer-name {
+    color: #e8e8e8;
+  }
+
+  .filer-list li .filer-first-line {
+    color: #888;
+    font-size: 11px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .filer-list li .filer-date {
+    color: #666;
+    font-size: 11px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .filer-footer {
+    padding: 6px 14px;
+    font-size: 10px;
+    color: #666;
+    border-top: 1px solid #444;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .filer-inline-input {
+    padding: 6px 14px;
+    border-top: 1px solid #444;
+    flex-shrink: 0;
+  }
+
+  .filer-inline-input input {
+    width: 100%;
+    background: #2a2a2a;
+    color: #e8e8e8;
+    border: 1px solid #555;
+    border-radius: 3px;
+    padding: 4px 8px;
+    font-size: 13px;
+    box-sizing: border-box;
+  }
+
+  .filer-inline-input.hidden {
+    display: none;
+  }
+
+  /* 案内メッセージ */
+
+  /* 検索input */
+  .filer-search {
+    padding: 6px 14px;
+    border-bottom: 1px solid #444;
+    flex-shrink: 0;
+  }
+
+  .filer-search input {
+    width: 100%;
+    background: #2a2a2a;
+    color: #e8e8e8;
+    border: 1px solid #555;
+    border-radius: 3px;
+    padding: 4px 8px;
+    font-size: 13px;
+    box-sizing: border-box;
+    outline: none;
+  }
+
+  .filer-search input:focus {
+    border-color: #8ab4f8;
+  }
+  .filer-notice {
+    color: #888;
+    font-size: 13px;
+    padding: 20px 14px;
+    text-align: center;
+  }
+
+  /* Quick Open セクション見出し */
+.qo-section {
+  padding: 4px 14px 2px;
+  font-size: 10px;
+  color: #666;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  list-style: none;
+  text-transform: uppercase;
+}
+
+
+.qo-workspace  {
+  position: relative;
+}
+.filer-file{
+    position: relative;
+}
+
+/* ワークスペース行の名前色（フォルダと同じ青） */
+.qo-workspace .filer-name {
+  color: #aacbff;
+}
+
+.cp-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 9000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 120px;
+}
+.cp-modal {
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #ccc);
+  border-radius: 6px;
+  width: 480px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  overflow: hidden;
+}
+.cp-header {
+  padding: 8px 14px;
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  border-bottom: 1px solid var(--border, #ccc);
+  letter-spacing: .05em;
+}
+.cp-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.cp-list li {
+  padding: 8px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.cp-list li:hover,
+.cp-list li.cp-selected {
+  background: var(--accent, #0078d4);
+  color: #fff;
+}
+.cp-label-local {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--accent, #0078d4);
+  color: #fff;
+  margin-left: auto;
+  opacity: .85;
+}
+.cp-list li.cp-selected .cp-label-local {
+  background: rgba(255,255,255,.3);
+}
+.cp-status {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text-muted, #888);
+  border-top: 1px solid var(--border, #ccc);
+  min-height: 24px;
+}
+
+/* ── コマンド結果トースト ─────────────────────── */
+#cp-toast {
+  position: fixed;
+  bottom: 48px; /* ステータスバーの高さ分上に */
+  right: 16px;
+  min-width: 260px;
+  max-width: 480px;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #ccc);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.2);
+  padding: 10px 36px 10px 14px;
+  z-index: 9100;
+  transition: opacity .2s, transform .2s;
+}
+#cp-toast.cp-toast-hidden  { opacity: 0; pointer-events: none; transform: translateY(8px); }
+#cp-toast.cp-toast-visible { opacity: 1; pointer-events: auto; transform: translateY(0); }
+#cp-toast.cp-toast-success { border-left: 3px solid #2da44e; }
+#cp-toast.cp-toast-error   { border-left: 3px solid #cf222e; }
+.cp-toast-header { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+.cp-toast-body   { font-size: 12px; margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; color: var(--text-muted, #555); }
+.cp-toast-close  { position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; font-size: 12px; color: var(--text-muted, #888); padding: 2px 4px; }
+
+/* ============================================================
+   スタイルシートへの追加分（Quick Open — 削除ボタン）
+   ============================================================
+   .qo-workspace と .filer-file（qoList 内）に
+   position: relative が当たっていない場合は先に追加してください。
+   ============================================================ */
+
+/* li に relative を付与（既にあれば不要） */
+#qoList .qo-workspace,
+#qoList .filer-file {
+  position: relative;
+}
+
+/* 削除ボタン本体 */
+.qo-remove-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+  border-radius: 4px;
+  /* キーボードフォーカスでも視認できるようにする */
+  outline-offset: 2px;
+}
+
+/* ホバー時に表示 */
+#qoList .qo-workspace:hover .qo-remove-btn,
+#qoList .filer-file:hover .qo-remove-btn {
+  opacity: 1;
+}
+
+/* × ボタン自体にホバー */
+.qo-remove-btn:hover {
+  color: #e06c75;
+  background: rgba(224, 108, 117, 0.15);
+  opacity: 1;
+}
+
+
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="editor"></div>
     <div id="status-bar"></div>
-    <!-- ⌘+O 用モーダル -->
-    <div id="modalOverlayO" class="modal-overlay hidden">
-      <div class="modal">
-        <input type="text" id="modalInputO" placeholder="taskmanegment/index" />
-        <div id="modal-editor"></div>
-        <ul id="modalResultsO">
-        </ul>
-      </div>
+<!-- ⌘+O 用モーダルファイラー -->
+<div id="modalOverlayO" class="modal-overlay hidden">
+  <div class="modal filer-modal">
+    <!-- ヘッダー: パンくず + 件数・ソート表示 -->
+    <div class="filer-header">
+      <div class="filer-breadcrumb" id="filerBreadcrumb"></div>
+      <div class="filer-meta" id="filerMeta"></div>
     </div>
+    <!-- 検索input: 常時表示・常時フォーカス -->
+    <div class="filer-search">
+      <input type="text" id="filerSearchInput" placeholder="絞り込み…" autocomplete="off" />
+    </div>
+    <!-- ファイルリスト -->
+    <ul id="filerList" class="filer-list"></ul>
+    <!-- フッター: キーバインドヒント -->
+    <div class="filer-footer">
+      enter 開く &nbsp;|&nbsp; shift+enter 新規ウィンドウ &nbsp;|&nbsp;
+      ↑↓ 移動 &nbsp;|&nbsp; ← 上へ &nbsp;|&nbsp; → フォルダへ &nbsp;|&nbsp;
+      ⌘N 新規 &nbsp;|&nbsp; ⌘R 名前変更 &nbsp;|&nbsp; ⌘D 削除 &nbsp;|&nbsp; ⌘S ソート切替 &nbsp;|&nbsp;
+      esc クリア/閉じる
+    </div>
+    <!-- インライン入力（新規・名前変更用） -->
+    <div id="filerInlineInput" class="filer-inline-input hidden">
+      <input type="text" id="filerInputField" />
+    </div>
+  </div>
+</div>
 
-    <!-- ⌘+P 用モーダル -->
-    <div id="modalOverlayP" class="modal-overlay hidden">
-      <div class="modal">
-        <input type="text" id="modalInputP" placeholder="アクションを入力…" />
-        <ul id="modalResultsP"></ul>
-      </div>
+
+
+    <!-- ⌘+P Quick Open パレット -->
+<div id="modalOverlayP" class="modal-overlay hidden">
+  <div class="modal filer-modal">
+    <div class="filer-search">
+      <input type="text" id="qoInput"
+             placeholder="ファイル名 / ワークスペース名…"
+             autocomplete="off" />
     </div>
+    <ul id="qoList" class="filer-list"></ul>
+    <div class="filer-footer">
+      ↑↓ 選択 &nbsp;|&nbsp; enter 開く &nbsp;|&nbsp;
+      ⌘enter 新規ウィンドウ &nbsp;|&nbsp; esc 閉じる
+    </div>
+  </div>
+</div>
+
+<!-- コマンドパレット -->
+<div id="command-palette-overlay" class="cp-overlay" style="display:none;" role="dialog" aria-modal="true" aria-label="コマンドパレット">
+  <div class="cp-modal">
+    <div class="cp-header">コマンドパレット</div>
+    <ul id="command-palette-list" class="cp-list"></ul>
+    <div id="command-palette-status" class="cp-status"></div>
+  </div>
+</div>
 
     <script defer src="./dist/bundle.js"></script>
   </body>

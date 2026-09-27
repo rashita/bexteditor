@@ -1,0 +1,22 @@
+{
+  "commands": [
+    {
+      "name": "Word Count",
+      "command": "wc",
+      "args": ["-w", "{file}"],
+      "cwd": "{dir}"
+    },
+    {
+      "name": "Open in Finder",
+      "command": "open",
+      "args": ["{dir}"],
+      "cwd": "{dir}"
+    },
+    {
+      "name": "Copy to Clipboard",
+      "command": "ls",
+      "args": [],
+      "cwd": "{dir}"
+    }
+  ]
+}

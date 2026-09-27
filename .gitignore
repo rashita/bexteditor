@@ -7,6 +7,8 @@
 # macOS
 .DS_Store
 
+.env
+
 # self
 bextEditor.code-workspace
 
