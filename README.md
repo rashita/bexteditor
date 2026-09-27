@@ -10,6 +10,7 @@ BextEditor is a simple, lightweight text editor built with Electron and CodeMirr
 *   **Markdown Support:** Enhanced for Markdown editing with syntax highlighting.
 *   **File Operations:** Create new files, open existing files, and save your work.
 *   **Cross-Platform:** Works on macOS.
+*   **macOSの終了動作:** 最後のウィンドウを閉じてもアプリは終了しません。Dockアイコンをクリックすると、編集ウィンドウがなければ空のウィンドウを開きます。アプリを終了するにはメニューの「終了」または `Cmd+Q` を使用してください。
 *   **Task Lists:** Supports GFM-style task lists (`- [ ]` and `- [x]`).
 *   **Line Movement:** Move lines up and down with `Cmd/Ctrl+Alt+ArrowUp/Down`.
 *   **Line Numbers:** Hidden on startup. Toggle **View → 行番号を表示** to show or hide them in all editor windows during the current session. The gutter keeps the same width when numbers are hidden, with room for at least three digits.

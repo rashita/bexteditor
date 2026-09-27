@@ -720,10 +720,9 @@ app.whenReady().then(() => {
   }
 
 
-  app.on('activate', (event, hasVisibleWindows) => {
-    console.log("active" + event)
+  app.on('activate', () => {
     if (windows.size === 0) {
-      console.log("on active");
+      createWindow();
     }
   });
 
@@ -762,7 +761,9 @@ app.on('open-url', (event, url) => {
 });
 
 app.on('window-all-closed', () => {
-  app.quit();
+  // macOSではワークスペース切り替え中も含め、窓がなくても終了しない。
+  // 明示的な「終了」や Cmd+Q では通常どおり終了する。
+  if (process.platform !== 'darwin') app.quit();
 });
 
 
